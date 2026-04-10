@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WetKit OS — Upload IFC</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0f1a; color: #e2e8f0;
+      font-family: monospace;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #111827; border: 1px solid #1f2937;
+      border-radius: 12px; padding: 40px;
+      width: 100%; max-width: 520px;
+    }
+    h1 { font-size: 20px; color: #3b82f6; margin-bottom: 4px; }
+    .tagline { font-size: 12px; color: #6b7280; margin-bottom: 32px; }
+    .drop-zone {
+      border: 2px dashed #1f2937; border-radius: 8px;
+      padding: 48px 24px; text-align: center;
+      cursor: pointer; transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 20px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #3b82f6; background: #1d3557;
+    }
+    .drop-zone .icon { font-size: 36px; margin-bottom: 12px; }
+    .drop-zone p { font-size: 13px; color: #9ca3af; margin-bottom: 6px; }
+    .drop-zone small { font-size: 11px; color: #4b5563; }
+    input[type=file] { display: none; }
+    .btn {
+      width: 100%; padding: 12px;
+      background: #1d4ed8; color: white;
+      border: none; border-radius: 6px;
+      font-size: 13px; font-family: monospace;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn:hover { background: #2563eb; }
+    .btn:disabled { background: #1f2937; color: #4b5563; cursor: not-allowed; }
+    #status {
+      margin-top: 20px; padding: 14px;
+      border-radius: 6px; font-size: 12px;
+      display: none;
+    }
+    #status.info { background: #1e3a5f; border: 1px solid #1d4ed8; color: #93c5fd; }
+    #status.success { background: #052e16; border: 1px solid #16a34a; color: #86efac; }
+    #status.error { background: #2d0a0a; border: 1px solid #dc2626; color: #fca5a5; }
+    .progress-bar {
+      height: 4px; background: #1f2937; border-radius: 2px;
+      margin-top: 12px; overflow: hidden; display: none;
+    }
+    .progress-fill {
+      height: 100%; background: #3b82f6;
+      width: 0%; transition: width 0.3s;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .result-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin-top: 16px;
+    }
+    .result-item {
+      background: #0a0f1a; border: 1px solid #1f2937;
+      border-radius: 6px; padding: 10px;
+    }
+    .result-item label { font-size: 10px; color: #6b7280; display: block; margin-bottom: 2px; }
+    .result-item span { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .systems-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .sys-badge {
+      padding: 3px 8px; border-radius: 3px;
+      font-size: 11px; font-weight: 600;
+    }
+    .view-btn {
+      display: block; width: 100%; padding: 12px;
+      background: #065f46; color: #6ee7b7;
+      border: 1px solid #059669; border-radius: 6px;
+      font-size: 13px; font-family: monospace;
+      cursor: pointer; text-align: center;
+      text-decoration: none; margin-top: 16px;
+    }
+    .view-btn:hover { background: #047857; }
+    .back { 
+      display: block; text-align: center;
+      margin-top: 16px; font-size: 11px;
+      color: #4b5563; text-decoration: none;
+    }
+    .back:hover { color: #9ca3af; }
+    .file-info {
+      display: none; padding: 10px 14px;
+      background: #0a0f1a; border: 1px solid #1f2937;
+      border-radius: 6px; margin-bottom: 16px;
+      font-size: 12px; color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>WetKit OS</h1>
+  <p class="tagline">Single line. Full spool. Pre-fab ready.</p>
+
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="icon">📐</div>
+    <p>Drop your IFC file here</p>
+    <p>or click to browse</p>
+    <small>BricsCAD AX-3000 single-line format · IFC4 only</small>
+  </div>
+
+  <input type="file" id="fileInput" accept=".ifc">
+  <div class="file-info" id="fileInfo"></div>
+
+  <button class="btn" id="uploadBtn" disabled onclick="uploadFile()">
+    Upload and process
+  </button>
+
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <div id="status"></div>
+  <div id="result"></div>
+
+  <a href="/" class="back">← Back to viewer</a>
+</div>
+
+<script>
+const PROJECT_ID = '11111111-1111-1111-1111-111111111111';
+const SYSTEM_COLORS = {
+  CW: '#2563EB', HW: '#DC2626', HWR: '#F97316',
+  FWS: '#EF4444', SOIL: '#78716C', WASTE: '#9ca3af',
+  VENT: '#0D9488', SWD: '#16A34A',
+};
+
+let selectedFile = null;
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const fileInfo = document.getElementById('fileInfo');
+
+// Drag and drop
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) selectFile(file);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) selectFile(e.target.files[0]);
+});
+
+function selectFile(file) {
+  if (!file.name.endsWith('.ifc')) {
+    showStatus('Only .ifc files are supported', 'error');
+    return;
+  }
+  selectedFile = file;
+  fileInfo.style.display = 'block';
+  fileInfo.textContent = `📄 ${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+  uploadBtn.disabled = false;
+  document.getElementById('status').style.display = 'none';
+  document.getElementById('result').innerHTML = '';
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.style.display = 'block';
+  el.className = type;
+  el.textContent = msg;
+}
+
+async function uploadFile() {
+  if (!selectedFile) return;
+
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Processing...';
+  document.getElementById('progressBar').style.display = 'block';
+  document.getElementById('progressFill').style.width = '30%';
+  showStatus('Uploading and extracting pipe segments...', 'info');
+  document.getElementById('result').innerHTML = '';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    document.getElementById('progressFill').style.width = '60%';
+
+    const response = await fetch(
+      `/api/wetkit/projects/${PROJECT_ID}/upload`,
+      { method: 'POST', body: formData }
+    );
+
+    document.getElementById('progressFill').style.width = '90%';
+
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || 'Upload failed');
+
+    document.getElementById('progressFill').style.width = '100%';
+    showStatus(`✓ Processed successfully`, 'success');
+
+    // Show result
+    const systemBadges = (data.systemsFound || []).map(s =>
+      `<span class="sys-badge" style="background:${SYSTEM_COLORS[s] || '#888'}33;color:${SYSTEM_COLORS[s] || '#888'};border:1px solid ${SYSTEM_COLORS[s] || '#888'}55">${s}</span>`
+    ).join('');
+
+    const unclassified = data.unclassifiedLayers && data.unclassifiedLayers.length
+      ? `<p style="color:#f59e0b;font-size:11px;margin-top:8px">⚠ Unclassified layers: ${data.unclassifiedLayers.join(', ')}</p>`
+      : '';
+
+    document.getElementById('result').innerHTML = `
+      <div class="result-grid">
+        <div class="result-item">
+          <label>Segments extracted</label>
+          <span>${data.segmentCount}</span>
+        </div>
+        <div class="result-item">
+          <label>Fixtures found</label>
+          <span>${data.fixtureCount || 0}</span>
+        </div>
+        <div class="result-item">
+          <label>IDS pass rate</label>
+          <span>${data.idsPassRate || 100}%</span>
+        </div>
+        <div class="result-item">
+          <label>Schema</label>
+          <span>Schematic</span>
+        </div>
+      </div>
+      <div class="systems-list">${systemBadges}</div>
+      ${unclassified}
+      <a href="/" class="view-btn">
+        → Go to dashboard
+      </a>
+    `;
+
+  } catch (err) {
+    document.getElementById('progressFill').style.width = '0%';
+    showStatus(`✕ ${err.message}`, 'error');
+  } finally {
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Upload and process';
+  }
+}
+</script>
+</body>
+</html>

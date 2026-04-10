@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WetKit OS — Projects</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0f1a; color: #e2e8f0; font-family: monospace; min-height: 100vh; }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid #1f2937; background: #0d1117; }
+    nav h1 { font-size: 16px; color: #3b82f6; }
+    nav p { font-size: 10px; color: #6b7280; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-user { font-size: 12px; color: #9ca3af; }
+    .nav-btn { padding: 6px 14px; font-size: 11px; font-family: monospace; border-radius: 4px; cursor: pointer; border: 1px solid #1f2937; background: transparent; color: #6b7280; text-decoration: none; }
+    .nav-btn:hover { color: #e2e8f0; border-color: #374151; }
+    main { max-width: 800px; margin: 0 auto; padding: 40px 24px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h2 { font-size: 18px; color: #e2e8f0; }
+    .btn { padding: 8px 16px; font-size: 12px; font-family: monospace; border-radius: 6px; cursor: pointer; border: none; }
+    .btn-primary { background: #1d4ed8; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: #2d0a0a; color: #fca5a5; border: 1px solid #dc262633; }
+    .btn-danger:hover { background: #450a0a; }
+    .project-grid { display: flex; flex-direction: column; gap: 12px; }
+    .project-card {
+      background: #111827; border: 1px solid #1f2937;
+      border-radius: 8px; padding: 20px;
+      display: flex; align-items: center; gap: 16px;
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    .project-card:hover { border-color: #3b82f6; }
+    .project-card.active { border-color: #16a34a; background: #052e1622; }
+    .project-icon { width: 40px; height: 40px; background: #1d4ed8; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .project-info { flex: 1; }
+    .project-info h3 { font-size: 14px; color: #e2e8f0; margin-bottom: 4px; }
+    .project-info p { font-size: 11px; color: #6b7280; }
+    .project-stats { display: flex; gap: 16px; margin-top: 6px; }
+    .project-stat { font-size: 11px; color: #9ca3af; }
+    .project-stat strong { color: #e2e8f0; }
+    .project-actions { display: flex; gap: 8px; }
+    .active-badge { font-size: 10px; padding: 2px 8px; background: #052e16; color: #86efac; border: 1px solid #16a34a33; border-radius: 3px; }
+    .new-project-form { background: #111827; border: 2px dashed #1f2937; border-radius: 8px; padding: 24px; margin-bottom: 24px; display: none; }
+    .new-project-form.open { display: block; }
+    .new-project-form h3 { font-size: 13px; color: #9ca3af; margin-bottom: 16px; }
+    .field { margin-bottom: 14px; }
+    .field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%; padding: 10px 12px;
+      background: #0a0f1a; border: 1px solid #1f2937;
+      border-radius: 6px; color: #e2e8f0; font-size: 13px; font-family: monospace;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: #3b82f6; }
+    .form-actions { display: flex; gap: 8px; }
+    #loading { text-align: center; padding: 60px; color: #6b7280; }
+    .empty { text-align: center; padding: 60px; color: #4b5563; }
+  </style>
+</head>
+<body>
+<nav>
+  <div><h1>WetKit OS</h1><p>Single line. Full spool. Pre-fab ready.</p></div>
+  <div class="nav-right">
+    <span class="nav-user" id="navUser"></span>
+    <a href="/" class="nav-btn">Dashboard</a>
+    <a href="#" class="nav-btn" onclick="signOut()">Sign out</a>
+  </div>
+</nav>
+
+<main>
+  <div class="page-header">
+    <h2>My projects</h2>
+    <button class="btn btn-primary" onclick="toggleForm()">+ New project</button>
+  </div>
+
+  <!-- New project form -->
+  <div class="new-project-form" id="newProjectForm">
+    <h3>Create new project</h3>
+    <div class="field">
+      <label>Project name</label>
+      <input type="text" id="projName" placeholder="e.g. Bangalore Villa Block B">
+    </div>
+    <div class="field">
+      <label>Building type</label>
+      <select id="projType">
+        <option value="residential">Residential</option>
+        <option value="commercial">Commercial</option>
+        <option value="hospital">Hospital</option>
+        <option value="hotel">Hotel</option>
+        <option value="industrial">Industrial</option>
+        <option value="mixed_use">Mixed use</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="createProject()">Create project</button>
+      <button class="btn" style="border:1px solid #1f2937;background:transparent;color:#6b7280" onclick="toggleForm()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="loading">Loading projects...</div>
+  <div class="project-grid" id="projectGrid"></div>
+</main>
+
+<script>
+const TENANT_ID  = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+const TOKEN      = localStorage.getItem('wk_token')   || '';
+const NAME       = localStorage.getItem('wk_name')    || '';
+const ACTIVE_PID = localStorage.getItem('wk_project') || '';
+
+if (!TOKEN) window.location.href = '/login.html';
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'x-tenant-id': TENANT_ID,
+  'Authorization': 'Bearer ' + TOKEN
+};
+
+const BUILDING_ICONS = {
+  residential:'🏠', commercial:'🏢', hospital:'🏥',
+  hotel:'🏨', industrial:'🏭', mixed_use:'🏙'
+};
+
+document.getElementById('navUser').textContent = NAME;
+
+function signOut() { localStorage.clear(); window.location.href = '/login.html'; }
+function toggleForm() {
+  document.getElementById('newProjectForm').classList.toggle('open');
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/wetkit/projects-list', { headers: HEADERS });
+    const data = await r.json();
+    renderProjects(data.projects || []);
+    document.getElementById('loading').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Error: ' + e.message;
+  }
+}
+
+function renderProjects(projects) {
+  const grid = document.getElementById('projectGrid');
+  if (!projects.length) {
+    grid.innerHTML = '<div class="empty">No projects yet. Create your first project above.</div>';
+    return;
+  }
+  grid.innerHTML = projects.map(p => {
+    const isActive = p.id === ACTIVE_PID;
+    const icon = BUILDING_ICONS[p.building_type] || '🏗';
+    const date = new Date(p.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+    return '<div class="project-card ' + (isActive?'active':'') + '" onclick="switchProject(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\'") + '\')">' +
+      '<div class="project-icon">' + icon + '</div>' +
+      '<div class="project-info">' +
+        '<h3>' + p.name + (isActive ? ' <span class="active-badge">Active</span>' : '') + '</h3>' +
+        '<p>' + p.building_type + ' · Created ' + date + '</p>' +
+        '<div class="project-stats">' +
+          '<span class="project-stat"><strong>' + p.segments + '</strong> segments</span>' +
+          '<span class="project-stat"><strong>' + p.spools + '</strong> spools</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="project-actions">' +
+        (isActive
+          ? '<button class="btn btn-primary" onclick="event.stopPropagation();goToDashboard()">Open →</button>'
+          : '<button class="btn" style="border:1px solid #1f2937;background:transparent;color:#9ca3af" onclick="event.stopPropagation();switchProject(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\'") + '\')">Switch →</button>') +
+        (isActive ? '' : '<button class="btn btn-danger" onclick="event.stopPropagation();deleteProject(\'' + p.id + '\')">Delete</button>') +
+      '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function switchProject(id, name) {
+  localStorage.setItem('wk_project', id);
+  localStorage.setItem('wk_name', NAME);
+  window.location.href = '/';
+}
+
+function goToDashboard() {
+  window.location.href = '/';
+}
+
+async function createProject() {
+  const name = document.getElementById('projName').value.trim();
+  const type = document.getElementById('projType').value;
+  if (!name) { alert('Project name required'); return; }
+  try {
+    const r = await fetch('/api/wetkit/projects-list',
+      { method: 'POST', headers: HEADERS, body: JSON.stringify({ name, building_type: type }) });
+    const data = await r.json();
+    if (!r.ok) { alert('Error: ' + data.error); return; }
+    localStorage.setItem('wk_project', data.id);
+    window.location.href = '/';
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteProject(id) {
+  if (!confirm('Delete this project? All segments, spools and BOM will be lost.')) return;
+  try {
+    const r = await fetch('/api/wetkit/projects-list/' + id,
+      { method: 'DELETE', headers: HEADERS });
+    if (!r.ok) { alert('Error deleting project'); return; }
+    await load();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+load();
+</script>
+</body>
+</html>

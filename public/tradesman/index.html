@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#0a0f1a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>WetKit — Tradesman</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { background: #0a0f1a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; min-height: 100vh; }
+
+    /* Top bar */
+    .topbar { background: #0d1117; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2937; position: sticky; top: 0; z-index: 10; }
+    .topbar-left h1 { font-size: 15px; color: #3b82f6; font-weight: 700; }
+    .topbar-left p { font-size: 10px; color: #6b7280; }
+    .topbar-right { display: flex; gap: 8px; }
+    .icon-btn { background: #1f2937; border: none; color: #9ca3af; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; }
+    .icon-btn:active { background: #374151; }
+
+    /* Language bar */
+    .lang-bar { display: flex; gap: 6px; padding: 10px 16px; overflow-x: auto; background: #0d1117; border-bottom: 1px solid #1f2937; }
+    .lang-bar::-webkit-scrollbar { display: none; }
+    .lang-btn { padding: 4px 10px; font-size: 11px; border-radius: 12px; border: 1px solid #1f2937; background: transparent; color: #6b7280; cursor: pointer; white-space: nowrap; }
+    .lang-btn.active { border-color: #3b82f6; color: #3b82f6; background: #1e3a5f; }
+
+    /* Stats strip */
+    .stats-strip { display: flex; padding: 12px 16px; gap: 8px; border-bottom: 1px solid #1f2937; }
+    .stat-pill { flex: 1; background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 8px; text-align: center; }
+    .stat-pill .num { font-size: 18px; font-weight: 700; }
+    .stat-pill .lbl { font-size: 9px; color: #6b7280; margin-top: 1px; }
+
+    /* Filter tabs */
+    .filter-tabs { display: flex; padding: 10px 16px; gap: 6px; overflow-x: auto; }
+    .filter-tabs::-webkit-scrollbar { display: none; }
+    .tab-btn { padding: 6px 14px; font-size: 11px; border-radius: 16px; border: 1px solid #1f2937; background: transparent; color: #6b7280; cursor: pointer; white-space: nowrap; }
+    .tab-btn.active { border-color: #3b82f6; color: #3b82f6; background: #1e3a5f; }
+
+    /* Spool cards */
+    .spool-list { padding: 8px 16px 80px; }
+    .spool-card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+    .spool-card.confirmed { border-color: #16a34a44; }
+    .spool-card.fabricated { border-color: #f59e0b44; }
+    .spool-card.installed  { border-color: #0ea5e944; }
+
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .spool-code { font-size: 14px; font-weight: 700; color: #e2e8f0; }
+    .sys-badge { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 10px; }
+    .sys-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    .card-stats { display: flex; gap: 12px; margin-bottom: 12px; }
+    .card-stat { font-size: 11px; color: #6b7280; }
+    .card-stat strong { color: #e2e8f0; font-size: 13px; display: block; }
+
+    .card-actions { display: flex; gap: 8px; }
+    .action-btn { flex: 1; padding: 10px; font-size: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; text-align: center; }
+    .action-btn:active { opacity: 0.8; transform: scale(0.98); }
+    .btn-confirm   { background: #052e16; color: #86efac; border: 1px solid #16a34a44; }
+    .btn-fabricate { background: #1c1917; color: #fbbf24; border: 1px solid #f59e0b44; }
+    .btn-install   { background: #0f172a; color: #38bdf8; border: 1px solid #0ea5e944; }
+    .btn-done      { background: #0f172a; color: #38bdf8; border: 1px solid #0ea5e944; }
+    .btn-qr        { background: #1f2937; color: #9ca3af; border: 1px solid #374151; width: 40px; flex: none; font-size: 16px; }
+
+    /* QR Scanner */
+    #qrOverlay { display: none; position: fixed; inset: 0; background: #000; z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
+    #qrOverlay.open { display: flex; }
+    #qrOverlay h2 { color: white; font-size: 16px; margin-bottom: 16px; }
+    #qrVideo { width: 280px; height: 280px; border-radius: 12px; border: 2px solid #3b82f6; }
+    #qrClose { margin-top: 20px; padding: 12px 32px; background: #1f2937; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+    .qr-frame { position: relative; }
+    .qr-corner { position: absolute; width: 20px; height: 20px; border-color: #3b82f6; border-style: solid; }
+    .qr-corner.tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; }
+    .qr-corner.tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; }
+    .qr-corner.bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; }
+    .qr-corner.br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; }
+
+    /* Bottom nav */
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #0d1117; border-top: 1px solid #1f2937; display: flex; padding: 8px 0 12px; }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; padding: 4px; }
+    .nav-item .nav-icon { font-size: 20px; }
+    .nav-item .nav-label { font-size: 9px; color: #6b7280; }
+    .nav-item.active .nav-label { color: #3b82f6; }
+
+    /* Loading */
+    #loadingEl { text-align: center; padding: 60px 20px; color: #6b7280; font-size: 13px; }
+    .spin { width: 24px; height: 24px; border: 2px solid #1f2937; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty { text-align: center; padding: 60px 20px; color: #4b5563; font-size: 13px; }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #052e16; color: #86efac; border: 1px solid #16a34a; padding: 10px 20px; border-radius: 20px; font-size: 12px; display: none; z-index: 50; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>WetKit OS</h1>
+    <p id="projectLabel">Loading...</p>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" onclick="openQR()" title="Scan QR">📷</button>
+    <button class="icon-btn" onclick="window.location.href='/'" title="Desktop">🖥</button>
+  </div>
+</div>
+
+<!-- Language selector -->
+<div class="lang-bar" id="langBar">
+  <button class="lang-btn active" onclick="setLang('en',this)">EN</button>
+  <button class="lang-btn" onclick="setLang('hi',this)">हिं</button>
+  <button class="lang-btn" onclick="setLang('kn',this)">ಕನ್ನ</button>
+  <button class="lang-btn" onclick="setLang('ta',this)">தமிழ்</button>
+  <button class="lang-btn" onclick="setLang('te',this)">తెలుగు</button>
+  <button class="lang-btn" onclick="setLang('ml',this)">മലയ</button>
+</div>
+
+<!-- Stats strip -->
+<div class="stats-strip">
+  <div class="stat-pill"><div class="num" id="statTotal">0</div><div class="lbl" id="lblTotal">Spools</div></div>
+  <div class="stat-pill"><div class="num" id="statPending" style="color:#a5b4fc">0</div><div class="lbl" id="lblPending">Pending</div></div>
+  <div class="stat-pill"><div class="num" id="statConfirmed" style="color:#86efac">0</div><div class="lbl" id="lblConfirmed">Confirmed</div></div>
+  <div class="stat-pill"><div class="num" id="statFab" style="color:#fbbf24">0</div><div class="lbl" id="lblFab">Fabricated</div></div>
+</div>
+
+<!-- Filter tabs -->
+<div class="filter-tabs">
+  <button class="tab-btn active" onclick="setFilter('ALL',this)" id="tabAll">All</button>
+  <button class="tab-btn" onclick="setFilter('pending',this)" id="tabPending">Pending</button>
+  <button class="tab-btn" onclick="setFilter('confirmed',this)" id="tabConfirmed">Confirmed</button>
+  <button class="tab-btn" onclick="setFilter('fabricated',this)" id="tabFab">Fabricated</button>
+  <button class="tab-btn" onclick="setFilter('installed',this)" id="tabInstalled">Installed</button>
+</div>
+
+<!-- Spool list -->
+<div id="loadingEl"><div class="spin"></div><span id="lblLoading">Loading spools...</span></div>
+<div class="spool-list" id="spoolList" style="display:none"></div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav">
+  <div class="nav-item active">
+    <div class="nav-icon">📋</div>
+    <div class="nav-label" id="navSpools">Spools</div>
+  </div>
+  <div class="nav-item" onclick="openQR()">
+    <div class="nav-icon">📷</div>
+    <div class="nav-label" id="navScan">Scan QR</div>
+  </div>
+  <div class="nav-item" onclick="window.location.href='/spools.html'">
+    <div class="nav-icon">📊</div>
+    <div class="nav-label" id="navDashboard">Dashboard</div>
+  </div>
+  <div class="nav-item" onclick="window.location.href='/'">
+    <div class="nav-icon">🏠</div>
+    <div class="nav-label" id="navHome">Home</div>
+  </div>
+</div>
+
+<!-- QR overlay -->
+<div id="qrOverlay">
+  <h2 id="qrTitle">Scan spool QR code</h2>
+  <div class="qr-frame">
+    <video id="qrVideo" playsinline autoplay></video>
+    <div class="qr-corner tl"></div>
+    <div class="qr-corner tr"></div>
+    <div class="qr-corner bl"></div>
+    <div class="qr-corner br"></div>
+  </div>
+  <button id="qrClose" onclick="closeQR()">Cancel</button>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const PROJECT_ID = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+const TENANT_ID  = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+const TOKEN      = localStorage.getItem('wk_token')   || '';
+
+if (!TOKEN) window.location.href = '/login.html';
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'x-tenant-id': TENANT_ID,
+  'Authorization': 'Bearer ' + TOKEN
+};
+
+const SYSTEM_COLORS = {
+  CW:'#2563EB', HW:'#DC2626', HWR:'#F97316', FWS:'#EF4444',
+  SOIL:'#78716C', WASTE:'#9ca3af', VENT:'#0D9488', SWD:'#16A34A'
+};
+
+// Translations
+const T = {
+  en: { spools:'Spools', pending:'Pending', confirmed:'Confirmed', fabricated:'Fabricated',
+        installed:'Installed', loading:'Loading spools...', confirm:'✓ Confirm',
+        fabricate:'⚙ Fabricated', install:'✓ Installed', done:'✓ Done',
+        scan:'Scan QR', dashboard:'Dashboard', home:'Home',
+        length:'Length', dfu:'DFU', system:'System', qrtitle:'Scan spool QR code' },
+  hi: { spools:'स्पूल', pending:'बाकी', confirmed:'पुष्टि', fabricated:'बना',
+        installed:'लगाया', loading:'लोड हो रहा है...', confirm:'✓ पुष्टि करें',
+        fabricate:'⚙ बनाया', install:'✓ लगाया', done:'✓ हो गया',
+        scan:'QR स्कैन', dashboard:'डैशबोर्ड', home:'होम',
+        length:'लंबाई', dfu:'DFU', system:'सिस्टम', qrtitle:'QR कोड स्कैन करें' },
+  kn: { spools:'ಸ್ಪೂಲ್', pending:'ಬಾಕಿ', confirmed:'ದೃಢ', fabricated:'ತಯಾರು',
+        installed:'ಅಳವಡಿಸಿ', loading:'ಲೋಡ್ ಆಗುತ್ತಿದೆ...', confirm:'✓ ದೃಢಪಡಿಸಿ',
+        fabricate:'⚙ ತಯಾರಿಸಿ', install:'✓ ಅಳವಡಿಸಿ', done:'✓ ಮುಗಿದಿದೆ',
+        scan:'QR ಸ್ಕ್ಯಾನ್', dashboard:'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್', home:'ಹೋಮ್',
+        length:'ಉದ್ದ', dfu:'DFU', system:'ವ್ಯವಸ್ಥೆ', qrtitle:'QR ಕೋಡ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ' },
+  ta: { spools:'ஸ்பூல்', pending:'நிலுவை', confirmed:'உறுதி', fabricated:'தயார்',
+        installed:'நிறுவிய', loading:'ஏற்றுகிறது...', confirm:'✓ உறுதிப்படுத்து',
+        fabricate:'⚙ தயாரிக்கப்பட்டது', install:'✓ நிறுவப்பட்டது', done:'✓ முடிந்தது',
+        scan:'QR ஸ்கேன்', dashboard:'டாஷ்போர்டு', home:'முகப்பு',
+        length:'நீளம்', dfu:'DFU', system:'அமைப்பு', qrtitle:'QR குறியீட்டை ஸ்கேன் செய்யுங்கள்' },
+  te: { spools:'స్పూల్', pending:'పెండింగ్', confirmed:'నిర్ధారించబడింది', fabricated:'తయారు',
+        installed:'వ్యవస్థాపించబడింది', loading:'లోడ్ అవుతోంది...', confirm:'✓ నిర్ధారించు',
+        fabricate:'⚙ తయారు చేయబడింది', install:'✓ వ్యవస్థాపించు', done:'✓ పూర్తయింది',
+        scan:'QR స్కాన్', dashboard:'డాష్‌బోర్డ్', home:'హోమ్',
+        length:'పొడవు', dfu:'DFU', system:'వ్యవస్థ', qrtitle:'QR కోడ్ స్కాన్ చేయండి' },
+  ml: { spools:'സ്പൂൾ', pending:'കാത്തിരിക്കുന്നു', confirmed:'സ്ഥിരീകരിച്ചു', fabricated:'നിർമ്മിച്ചു',
+        installed:'സ്ഥാപിച്ചു', loading:'ലോഡ് ചെയ്യുന്നു...', confirm:'✓ സ്ഥിരീകരിക്കുക',
+        fabricate:'⚙ നിർമ്മിച്ചു', install:'✓ സ്ഥാപിക്കുക', done:'✓ പൂർത്തിയായി',
+        scan:'QR സ്കാൻ', dashboard:'ഡാഷ്‌ബോർഡ്', home:'ഹോം',
+        length:'നീളം', dfu:'DFU', system:'സിസ്റ്റം', qrtitle:'QR കോഡ് സ്കാൻ ചെയ്യുക' }
+};
+
+let lang = localStorage.getItem('wk_lang') || 'en';
+let allSpools = [];
+let activeFilter = 'ALL';
+
+function t(key) { return (T[lang] && T[lang][key]) || T.en[key] || key; }
+
+function setLang(l, btn) {
+  lang = l;
+  localStorage.setItem('wk_lang', l);
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyTranslations();
+  renderSpools(getFiltered());
+}
+
+function applyTranslations() {
+  document.getElementById('lblTotal').textContent     = t('spools');
+  document.getElementById('lblPending').textContent   = t('pending');
+  document.getElementById('lblConfirmed').textContent = t('confirmed');
+  document.getElementById('lblFab').textContent       = t('fabricated');
+  document.getElementById('lblLoading').textContent   = t('loading');
+  document.getElementById('tabAll').textContent       = 'All';
+  document.getElementById('tabPending').textContent   = t('pending');
+  document.getElementById('tabConfirmed').textContent = t('confirmed');
+  document.getElementById('tabFab').textContent       = t('fabricated');
+  document.getElementById('tabInstalled').textContent = t('installed');
+  document.getElementById('navSpools').textContent    = t('spools');
+  document.getElementById('navScan').textContent      = t('scan');
+  document.getElementById('navDashboard').textContent = t('dashboard');
+  document.getElementById('navHome').textContent      = t('home');
+  document.getElementById('qrTitle').textContent      = t('qrtitle');
+}
+
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSpools(getFiltered());
+}
+
+function getFiltered() {
+  if (activeFilter === 'ALL') return allSpools;
+  return allSpools.filter(s => s.fabrication_status === activeFilter);
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools', { headers: HEADERS });
+    const data = await r.json();
+    allSpools = data.spools || [];
+
+    const name = localStorage.getItem('wk_name') || 'Project';
+    document.getElementById('projectLabel').textContent = name + "'s project · " + allSpools.length + ' spools';
+
+    updateStats();
+    renderSpools(allSpools);
+    document.getElementById('loadingEl').style.display = 'none';
+    document.getElementById('spoolList').style.display = 'block';
+  } catch(e) {
+    document.getElementById('lblLoading').textContent = 'Error: ' + e.message;
+  }
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent     = allSpools.length;
+  document.getElementById('statPending').textContent   = allSpools.filter(s => s.fabrication_status === 'pending').length;
+  document.getElementById('statConfirmed').textContent = allSpools.filter(s => s.fabrication_status === 'confirmed').length;
+  document.getElementById('statFab').textContent       = allSpools.filter(s => s.fabrication_status === 'fabricated').length;
+}
+
+function renderSpools(spools) {
+  const list = document.getElementById('spoolList');
+  if (!spools.length) {
+    list.innerHTML = '<div class="empty">No spools in this category</div>';
+    return;
+  }
+  list.innerHTML = spools.map(s => {
+    const color  = SYSTEM_COLORS[s.system_type] || '#888';
+    const status = s.fabrication_status || 'pending';
+    const lengthM = (parseFloat(s.total_length_mm||0)/1000).toFixed(2);
+    const dfu = parseFloat(s.total_dfu||0).toFixed(1);
+
+    let actionBtn = '';
+    if (status === 'pending')
+      actionBtn = '<button class="action-btn btn-confirm" onclick="updateStatus(\'' + s.id + '\',\'confirmed\')">' + t('confirm') + '</button>';
+    else if (status === 'confirmed')
+      actionBtn = '<button class="action-btn btn-fabricate" onclick="updateStatus(\'' + s.id + '\',\'fabricated\')">' + t('fabricate') + '</button>';
+    else if (status === 'fabricated')
+      actionBtn = '<button class="action-btn btn-install" onclick="updateStatus(\'' + s.id + '\',\'installed\')">' + t('install') + '</button>';
+    else
+      actionBtn = '<button class="action-btn btn-done" disabled>' + t('done') + '</button>';
+
+    return '<div class="spool-card ' + status + '" id="card-' + s.id + '">' +
+      '<div class="card-header">' +
+        '<span class="spool-code">' + s.spool_code + '</span>' +
+        '<span class="sys-badge" style="background:' + color + '22;color:' + color + '">' +
+          '<span class="sys-dot" style="background:' + color + '"></span>' +
+          s.system_type +
+        '</span>' +
+      '</div>' +
+      '<div class="card-stats">' +
+        '<div class="card-stat"><strong>' + lengthM + 'm</strong>' + t('length') + '</div>' +
+        '<div class="card-stat"><strong>' + dfu + '</strong>' + t('dfu') + '</div>' +
+        '<div class="card-stat"><strong>' + (s.dfu_status || 'ok') + '</strong>status</div>' +
+      '</div>' +
+      '<div class="card-actions">' +
+        actionBtn +
+        '<button class="action-btn btn-qr" onclick="shareQR(\'' + s.spool_code + '\')">🔗</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function updateStatus(spoolId, status) {
+  try {
+    const r = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools/' + spoolId + '/status',
+      { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ status }) });
+    if (!r.ok) { showToast('Error updating status'); return; }
+    const spool = allSpools.find(s => s.id === spoolId);
+    if (spool) spool.fabrication_status = status;
+    updateStats();
+    renderSpools(getFiltered());
+    showToast(status === 'confirmed' ? '✓ ' + t('confirmed') : status === 'fabricated' ? '⚙ ' + t('fabricated') : '✓ ' + t('installed'));
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+
+function shareQR(spoolCode) {
+  const url = window.location.origin + '/tradesman/?spool=' + spoolCode;
+  if (navigator.share) {
+    navigator.share({ title: 'WetKit Spool ' + spoolCode, url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!'));
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2000);
+}
+
+// QR Scanner
+let qrStream = null;
+async function openQR() {
+  document.getElementById('qrOverlay').classList.add('open');
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    document.getElementById('qrVideo').srcObject = qrStream;
+    showToast('Point camera at spool QR code');
+  } catch(e) {
+    showToast('Camera not available');
+    closeQR();
+  }
+}
+
+function closeQR() {
+  document.getElementById('qrOverlay').classList.remove('open');
+  if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+}
+
+// Check URL for spool param
+const urlParams = new URLSearchParams(window.location.search);
+const spoolParam = urlParams.get('spool');
+if (spoolParam) {
+  // Highlight or filter to this spool
+  setTimeout(() => {
+    const card = document.getElementById('card-' + spoolParam);
+    if (card) card.scrollIntoView({ behavior: 'smooth' });
+  }, 1000);
+}
+
+applyTranslations();
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WetKit OS — Spool Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0f1a; color: #e2e8f0; font-family: monospace; padding: 24px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #1f2937; }
+    header h1 { font-size: 18px; color: #3b82f6; }
+    header p { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    .nav a { font-size: 11px; color: #6b7280; text-decoration: none; padding: 6px 12px; border: 1px solid #1f2937; border-radius: 4px; }
+    .nav a:hover { color: #e2e8f0; border-color: #374151; }
+    .nav a.active { color: #3b82f6; border-color: #3b82f6; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .summary-card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 14px; }
+    .summary-card label { font-size: 10px; color: #6b7280; display: block; margin-bottom: 4px; }
+    .summary-card .val { font-size: 20px; font-weight: 700; color: #e2e8f0; }
+    .summary-card .sub { font-size: 10px; color: #6b7280; margin-top: 2px; }
+    .section { margin-bottom: 24px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+    .section-header h2 { font-size: 13px; color: #9ca3af; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { padding: 6px 14px; font-size: 11px; font-family: monospace; border-radius: 4px; cursor: pointer; border: none; }
+    .btn-primary { background: #1d4ed8; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-success { background: #065f46; color: #6ee7b7; border: 1px solid #059669; }
+    .btn-success:hover { background: #047857; }
+    .btn-confirm { background: #1e3a5f; color: #93c5fd; border: 1px solid #3b82f633; }
+    .btn-confirm:hover { background: #1d4ed8; color: white; }
+    .btn-pdf { background: #1c1917; color: #fbbf24; border: 1px solid #f59e0b33; }
+    .btn-pdf:hover { background: #292524; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 8px 12px; font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1f2937; }
+    td { padding: 8px 12px; border-bottom: 1px solid #111827; vertical-align: middle; }
+    tr:hover td { background: #0d1117; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+    .status-ok { background: #052e16; color: #86efac; border: 1px solid #16a34a33; }
+    .status-warning { background: #431407; color: #fdba74; }
+    .status-overload { background: #2d0a0a; color: #fca5a5; }
+    .fab-pending    { background: #1e1b4b; color: #a5b4fc; border: 1px solid #6366f133; }
+    .fab-confirmed  { background: #052e16; color: #86efac; border: 1px solid #16a34a33; }
+    .fab-fabricated { background: #1c1917; color: #fbbf24; border: 1px solid #f59e0b33; }
+    .fab-installed  { background: #0f172a; color: #38bdf8; border: 1px solid #0ea5e933; }
+    .sys-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .bom-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+    .bom-card { background: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 14px; }
+    .bom-card .sys-name { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    .bom-card .amount { font-size: 18px; font-weight: 700; }
+    .bom-card .sub { font-size: 10px; color: #6b7280; }
+    .progress-bar { height: 3px; background: #1f2937; border-radius: 2px; margin-top: 6px; }
+    .progress-fill { height: 100%; border-radius: 2px; }
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .filter-btn { padding: 4px 10px; font-size: 11px; border-radius: 3px; border: 1px solid #1f2937; background: transparent; color: #9ca3af; cursor: pointer; font-family: monospace; }
+    .filter-btn.active { border-color: #3b82f6; color: #3b82f6; background: #1e3a5f; }
+    .status-select { background: #0a0f1a; border: 1px solid #1f2937; color: #e2e8f0; font-family: monospace; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+    #loading { text-align: center; padding: 60px; color: #6b7280; font-size: 13px; }
+    .fab-progress { display: flex; gap: 8px; align-items: center; font-size: 11px; color: #6b7280; margin-bottom: 20px; }
+    .fab-bar { flex: 1; height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden; }
+    .fab-fill { height: 100%; background: #16a34a; border-radius: 3px; transition: width 0.3s; }
+  </style>
+</head>
+<body>
+<header>
+  <div><h1>WetKit OS</h1><p id="projectName">Spool dashboard</p></div>
+  <nav class="nav">
+    <a href="/">Dashboard</a>
+    <a href="/viewer.html">3D viewer</a>
+    <a href="/upload.html">Upload IFC</a>
+    <a href="/spools.html" class="active">Spools</a>
+    <a href="#" id="authLink" onclick="signOut()">Sign out</a>
+  </nav>
+</header>
+
+<div id="loading">Loading spools...</div>
+<div id="main" style="display:none">
+  <div class="summary-grid">
+    <div class="summary-card"><label>Total spools</label><div class="val" id="totalSpools">0</div><div class="sub">pre-fab units</div></div>
+    <div class="summary-card"><label>Pipe length</label><div class="val" id="totalLength">0m</div><div class="sub">metres total</div></div>
+    <div class="summary-card"><label>BOM total</label><div class="val" id="bomTotal">-</div><div class="sub">CPWD DSR 2023</div></div>
+    <div class="summary-card"><label>Confirmed</label><div class="val" id="confirmedCount">0</div><div class="sub" id="confirmedPct">of total</div></div>
+    <div class="summary-card"><label>Fabricated</label><div class="val" id="fabricatedCount">0</div><div class="sub">ready to install</div></div>
+    <div class="summary-card"><label>Installed</label><div class="val" id="installedCount">0</div><div class="sub">on site</div></div>
+  </div>
+
+  <div class="fab-progress" id="fabProgress">
+    <span id="fabPct">0%</span>
+    <div class="fab-bar"><div class="fab-fill" id="fabFill" style="width:0%"></div></div>
+    <span id="fabLabel">fabrication progress</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Bill of materials — by system</h2>
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="exportCSV()">Export CSV</button>
+        <button class="btn btn-success" onclick="downloadIFC()">Export IFC</button>
+      </div>
+    </div>
+    <div class="bom-grid" id="bomGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Spool list</h2>
+      <div class="btn-group">
+        <button class="btn btn-confirm" onclick="bulkConfirm('confirmed')">Confirm all</button>
+        <button class="btn btn-confirm" onclick="bulkConfirm('fabricated')">Mark all fabricated</button>
+        <button class="btn btn-primary" onclick="generateSpools()">Regenerate</button>
+      </div>
+    </div>
+    <div class="filter-bar" id="filterBar"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Spool code</th><th>System</th><th>Length</th>
+          <th>DFU</th><th>DFU status</th><th>Fabrication</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="spoolTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const PROJECT_ID = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+const TENANT_ID  = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+const TOKEN      = localStorage.getItem('wk_token')   || '';
+const NAME       = localStorage.getItem('wk_name')    || '';
+
+if (!TOKEN) window.location.href = '/login.html';
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'x-tenant-id': TENANT_ID,
+  'Authorization': 'Bearer ' + TOKEN
+};
+
+const SYSTEM_COLORS = { CW:'#2563EB',HW:'#DC2626',HWR:'#F97316',FWS:'#EF4444',SOIL:'#44403c',WASTE:'#78716C',VENT:'#0D9488',SWD:'#16A34A' };
+const SYSTEM_LABELS = { CW:'Cold water',HW:'Hot water',HWR:'Hot water return',FWS:'Fire water',SOIL:'Soil stack',WASTE:'Waste',VENT:'Vent',SWD:'Stormwater' };
+const FAB_STATUSES  = ['pending','confirmed','fabricated','installed'];
+
+if (NAME) {
+  document.getElementById('authLink').textContent = NAME + ' - Sign out';
+  document.getElementById('projectName').textContent = NAME + "'s project";
+}
+
+function signOut() { localStorage.clear(); window.location.href = '/login.html'; }
+
+let allSpools = [];
+
+async function load() {
+  try {
+    const [sr, br] = await Promise.all([
+      fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools', { headers: HEADERS }),
+      fetch('/api/wetkit/projects/' + PROJECT_ID + '/bom',    { headers: HEADERS })
+    ]);
+    const sd = await sr.json();
+    const bd = await br.json();
+    allSpools = sd.spools || [];
+    renderSummary(sd, bd);
+    renderBOM(bd);
+    renderFilters(allSpools);
+    renderTable(allSpools);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('main').style.display = 'block';
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Error: ' + e.message;
+  }
+}
+
+function renderSummary(sd, bd) {
+  const spools = sd.spools || [];
+  const totalMm    = spools.reduce((s,r) => s + parseFloat(r.total_length_mm||0), 0);
+  const confirmed  = spools.filter(s => s.fabrication_status === 'confirmed').length;
+  const fabricated = spools.filter(s => s.fabrication_status === 'fabricated').length;
+  const installed  = spools.filter(s => s.fabrication_status === 'installed').length;
+  const done = confirmed + fabricated + installed;
+  const pct  = spools.length ? Math.round((done/spools.length)*100) : 0;
+  document.getElementById('totalSpools').textContent     = sd.count || 0;
+  document.getElementById('totalLength').textContent     = (totalMm/1000).toFixed(1) + 'm';
+  document.getElementById('bomTotal').textContent        = bd.grandTotalINR ? 'Rs.' + bd.grandTotalINR.toLocaleString('en-IN') : '-';
+  document.getElementById('confirmedCount').textContent  = confirmed;
+  document.getElementById('confirmedPct').textContent    = Math.round((confirmed/Math.max(spools.length,1))*100) + '% of total';
+  document.getElementById('fabricatedCount').textContent = fabricated;
+  document.getElementById('installedCount').textContent  = installed;
+  document.getElementById('fabPct').textContent          = pct + '%';
+  document.getElementById('fabFill').style.width         = pct + '%';
+  document.getElementById('fabLabel').textContent        = done + ' of ' + spools.length + ' spools progressed';
+}
+
+function renderBOM(bd) {
+  const summary = bd.summary || {};
+  document.getElementById('bomGrid').innerHTML = Object.entries(summary).map(([sys, total]) => {
+    const color = SYSTEM_COLORS[sys] || '#888';
+    const label = SYSTEM_LABELS[sys] || sys;
+    const pct = Math.round((total / (bd.grandTotalINR||1)) * 100);
+    return '<div class="bom-card">' +
+      '<div class="sys-name"><span class="sys-dot" style="background:' + color + '"></span>' + label + ' (' + sys + ')</div>' +
+      '<div class="amount" style="color:' + color + '">Rs.' + Math.round(total).toLocaleString('en-IN') + '</div>' +
+      '<div class="sub">' + pct + '% of total</div>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderFilters(spools) {
+  const systems = ['ALL', ...new Set(spools.map(s => s.system_type))];
+  document.getElementById('filterBar').innerHTML =
+    systems.map(s => '<button class="filter-btn ' + (s==='ALL'?'active':'') + '" onclick="setFilter(\'' + s + '\',this)">' + s + '</button>').join('') +
+    '<button class="filter-btn" onclick="setFilter(\'PENDING\',this)">Pending only</button>';
+}
+
+function setFilter(f, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  let filtered = allSpools;
+  if (f === 'PENDING') filtered = allSpools.filter(s => s.fabrication_status === 'pending');
+  else if (f !== 'ALL') filtered = allSpools.filter(s => s.system_type === f);
+  renderTable(filtered);
+}
+
+function renderTable(spools) {
+  const tbody = document.getElementById('spoolTable');
+  if (!spools.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#4b5563">No spools found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = spools.map(s => {
+    const color    = SYSTEM_COLORS[s.system_type] || '#888';
+    const label    = SYSTEM_LABELS[s.system_type] || s.system_type;
+    const dfuClass = s.dfu_status === 'ok' ? 'status-ok' : s.dfu_status === 'warning' ? 'status-warning' : 'status-overload';
+    const fabClass = 'fab-' + (s.fabrication_status || 'pending');
+    const lengthM  = (parseFloat(s.total_length_mm||0)/1000).toFixed(2);
+    const idx      = FAB_STATUSES.indexOf(s.fabrication_status || 'pending');
+    const nextSt   = FAB_STATUSES[Math.min(idx+1, 3)];
+    const nextLbl  = { pending:'Confirm', confirmed:'Fabricated', fabricated:'Installed', installed:'Done' };
+    return '<tr>' +
+      '<td><strong>' + s.spool_code + '</strong></td>' +
+      '<td><span class="sys-dot" style="background:' + color + '"></span>' + label + '</td>' +
+      '<td>' + lengthM + 'm</td>' +
+      '<td>' + parseFloat(s.total_dfu||0).toFixed(1) + '</td>' +
+      '<td><span class="badge ' + dfuClass + '">' + s.dfu_status + '</span></td>' +
+      '<td><select class="status-select" onchange="updateStatus(\'' + s.id + '\',this.value)">' +
+        FAB_STATUSES.map(st => '<option value="' + st + '"' + (st===s.fabrication_status?' selected':'') + '>' + st + '</option>').join('') +
+      '</select></td>' +
+      '<td style="display:flex;gap:4px">' +
+        (s.fabrication_status !== 'installed'
+          ? '<button class="btn btn-confirm" style="padding:3px 8px;font-size:10px" onclick="updateStatus(\'' + s.id + '\',\'' + nextSt + '\')">' + nextLbl[s.fabrication_status||'pending'] + '</button>'
+          : '<span style="color:#38bdf8;font-size:11px">Done</span>') +
+        '<button class="btn btn-pdf" style="padding:3px 8px;font-size:10px" onclick="downloadSpoolPDF(\'' + s.id + '\')">PDF</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function updateStatus(spoolId, status) {
+  try {
+    const r = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools/' + spoolId + '/status',
+      { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ status }) });
+    const data = await r.json();
+    if (!r.ok) { alert('Error: ' + data.error); return; }
+    const spool = allSpools.find(s => s.id === spoolId);
+    if (spool) spool.fabrication_status = status;
+    renderTable(allSpools);
+    renderSummary({ spools: allSpools, count: allSpools.length }, { grandTotalINR: null, summary: {} });
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function bulkConfirm(status) {
+  if (!confirm('Mark all spools as ' + status + '?')) return;
+  try {
+    await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools/bulk-status',
+      { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ status }) });
+    allSpools.forEach(s => s.fabrication_status = status);
+    renderTable(allSpools);
+    renderSummary({ spools: allSpools, count: allSpools.length }, { grandTotalINR: null, summary: {} });
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function generateSpools() {
+  if (!confirm('Regenerate all spools?')) return;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('loading').textContent = 'Generating...';
+  document.getElementById('main').style.display = 'none';
+  await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools/generate', { method: 'POST', headers: HEADERS });
+  await fetch('/api/wetkit/projects/' + PROJECT_ID + '/bom/generate',    { method: 'POST', headers: HEADERS });
+  await load();
+}
+
+function exportCSV() {
+  const headers = ['Spool code','System','Length (m)','DFU','DFU status','Fabrication'];
+  const rows = allSpools.map(s => [
+    s.spool_code, s.system_type,
+    (parseFloat(s.total_length_mm||0)/1000).toFixed(2),
+    parseFloat(s.total_dfu||0).toFixed(1),
+    s.dfu_status, s.fabrication_status
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wetkit-spools.csv';
+  a.click();
+}
+
+async function downloadIFC() {
+  try {
+    const r = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/export/ifc', { headers: HEADERS });
+    if (!r.ok) { alert('Export failed'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'wetkit_export.ifc';
+    a.click();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function downloadSpoolPDF(spoolId) {
+  try {
+    const r = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools/' + spoolId + '/pdf',
+      { headers: HEADERS });
+    if (!r.ok) { alert('PDF generation failed'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'spool-' + spoolId.slice(0,8) + '.pdf';
+    a.click();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+load();
+</script>
+</body>
+</html>

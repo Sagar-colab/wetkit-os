@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WetKit OS — Pipe Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0f1a; color: #e2e8f0; font-family: monospace; overflow: hidden; }
+    #canvas { display: block; width: 100vw; height: 100vh; }
+    #sidebar {
+      position: fixed; top: 0; right: 0; width: 300px; height: 100vh;
+      background: #111827; border-left: 1px solid #1f2937;
+      padding: 24px; overflow-y: auto; transform: translateX(100%);
+      transition: transform 0.2s; z-index: 10;
+    }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar h2 { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+    .field { margin-bottom: 10px; }
+    .field label { font-size: 10px; color: #6b7280; display: block; }
+    .field span { font-size: 13px; color: #e2e8f0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+    #legend {
+      position: fixed; bottom: 24px; left: 24px;
+      background: #111827cc; border: 1px solid #1f2937;
+      border-radius: 8px; padding: 14px; z-index: 10;
+    }
+    #legend h3 { font-size: 10px; color: #6b7280; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    #controls {
+      position: fixed; top: 24px; left: 24px;
+      background: #111827cc; border: 1px solid #1f2937;
+      border-radius: 8px; padding: 14px; z-index: 10; min-width: 180px;
+    }
+    #controls h1 { font-size: 13px; color: #3b82f6; margin-bottom: 2px; }
+    #controls p { font-size: 10px; color: #6b7280; margin-bottom: 10px; }
+    .toggle { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11px; cursor: pointer; }
+    #stats { font-size: 10px; color: #6b7280; margin-top: 10px; border-top: 1px solid #1f2937; padding-top: 8px; }
+    #close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 16px; }
+    #loading { position: fixed; inset: 0; background: #0a0f1a; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; z-index: 100; }
+    #loading p { font-size: 12px; color: #6b7280; }
+    .spin { width: 28px; height: 28px; border: 2px solid #1f2937; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #hint { position: fixed; bottom: 24px; right: 24px; font-size: 10px; color: #374151; }
+    .nav-back { position: fixed; top: 24px; right: 24px; background: #111827cc; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 12px; font-size: 11px; color: #9ca3af; text-decoration: none; z-index: 10; }
+    .nav-back:hover { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+<div id="loading"><div class="spin"></div><p>Loading pipe segments...</p></div>
+<canvas id="canvas"></canvas>
+<div id="controls">
+  <h1>WetKit OS</h1>
+  <p>Single line. Full spool. Pre-fab ready.</p>
+  <div id="toggles"></div>
+  <div id="stats"></div>
+</div>
+<div id="legend"><h3>Systems</h3><div id="legend-items"></div></div>
+<div id="sidebar">
+  <button id="close" onclick="closeSidebar()">x</button>
+  <h2>Pipe segment</h2>
+  <div id="info"></div>
+</div>
+<a href="/" class="nav-back">Back to dashboard</a>
+<div id="hint">Drag to orbit · Scroll to zoom · Click pipe to inspect</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const PROJECT_ID= localStorage.getItem('wk_project')|| '11111111-1111-1111-1111-111111111111';
+const TENANT_ID = localStorage.getItem('wk_tenant') || '00000000-0000-0000-0000-000000000001';
+const TOKEN     = localStorage.getItem('wk_token')  || '';
+
+if (!TOKEN) window.location.href = '/login.html';
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'x-tenant-id': TENANT_ID,
+  'Authorization': 'Bearer ' + TOKEN
+};
+
+const SYSTEMS = {
+  CW:    { color: 0x2563EB, label: 'Cold water',       ind: 'o' },
+  HW:    { color: 0xDC2626, label: 'Hot water',        ind: 'e' },
+  HWR:   { color: 0xF97316, label: 'Hot water return', ind: 'o' },
+  FWS:   { color: 0xEF4444, label: 'Fire water',       ind: 't' },
+  SOIL:  { color: 0x44403c, label: 'Soil stack',       ind: 'v' },
+  WASTE: { color: 0x78716C, label: 'Waste',            ind: 'd' },
+  VENT:  { color: 0x0D9488, label: 'Vent',             ind: 't' },
+  SWD:   { color: 0x16A34A, label: 'Stormwater',       ind: 's' },
+};
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x0a0f1a);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 10, 500000);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(1, 2, 1);
+scene.add(sun);
+
+let theta = 0.3, phi = 1.2, radius = 20000;
+let target = new THREE.Vector3();
+let dragging = false, px = 0, py = 0;
+
+function camPos() {
+  camera.position.set(
+    target.x + radius * Math.sin(phi) * Math.sin(theta),
+    target.y + radius * Math.cos(phi),
+    target.z + radius * Math.sin(phi) * Math.cos(theta)
+  );
+  camera.lookAt(target);
+}
+
+const cv = renderer.domElement;
+cv.addEventListener('mousedown', e => { dragging = true; px = e.clientX; py = e.clientY; });
+cv.addEventListener('mouseup', () => dragging = false);
+cv.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  theta -= (e.clientX - px) * 0.006;
+  phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi + (e.clientY - py) * 0.006));
+  px = e.clientX; py = e.clientY;
+  camPos();
+});
+cv.addEventListener('wheel', e => {
+  radius = Math.max(500, radius * (1 + e.deltaY * 0.001));
+  camPos();
+});
+
+const raycaster = new THREE.Raycaster();
+const clickables = [];
+cv.addEventListener('click', e => {
+  if (Math.abs(e.movementX) + Math.abs(e.movementY) > 3) return;
+  const mouse = new THREE.Vector2(
+    (e.clientX / innerWidth) * 2 - 1,
+    -(e.clientY / innerHeight) * 2 + 1
+  );
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickables);
+  if (hits.length) showSidebar(hits[0].object.userData.seg);
+});
+
+function showSidebar(seg) {
+  const sys = SYSTEMS[seg.system_type] || {};
+  const hex = '#' + (sys.color || 0x888888).toString(16).padStart(6,'0');
+  document.getElementById('info').innerHTML =
+    '<div class="field"><label>System</label><span class="badge" style="background:' + hex + '33;color:' + hex + ';border:1px solid ' + hex + '55">' + seg.system_type + ' - ' + (sys.label||'') + '</span></div>' +
+    '<div class="field"><label>DN</label><span>' + (seg.diameter_mm ? seg.diameter_mm + ' mm' : '-') + '</span></div>' +
+    '<div class="field"><label>OD</label><span>' + (seg.od_mm ? seg.od_mm + ' mm' : '-') + '</span></div>' +
+    '<div class="field"><label>Length</label><span>' + (seg.length_mm ? Math.round(seg.length_mm) + ' mm' : '-') + '</span></div>' +
+    '<div class="field"><label>Floor</label><span>' + (seg.floor_level||'GF') + '</span></div>' +
+    '<div class="field"><label>Global ID</label><span style="font-size:10px;color:#9ca3af">' + seg.global_id + '</span></div>';
+  document.getElementById('sidebar').classList.add('open');
+}
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
+
+const hidden = new Set();
+function buildUI(segments) {
+  const systems = [...new Set(segments.map(s => s.system_type))];
+  document.getElementById('toggles').innerHTML = systems.map(s => {
+    const cfg = SYSTEMS[s] || { color: 0x888888, label: s };
+    const hex = '#' + cfg.color.toString(16).padStart(6,'0');
+    return '<label class="toggle"><input type="checkbox" checked onchange="toggle(\'' + s + '\',this.checked)"><span style="color:' + hex + '">' + (cfg.label||s) + '</span></label>';
+  }).join('');
+  document.getElementById('legend-items').innerHTML = systems.map(s => {
+    const cfg = SYSTEMS[s] || { color: 0x888888, label: s, ind: 'o' };
+    const hex = '#' + cfg.color.toString(16).padStart(6,'0');
+    return '<div class="legend-item"><div class="dot" style="background:' + hex + '"></div><span>' + (cfg.label||s) + ' (' + s + ')</span></div>';
+  }).join('');
+  const counts = {};
+  segments.forEach(s => counts[s.system_type] = (counts[s.system_type]||0)+1);
+  document.getElementById('stats').innerHTML = segments.length + ' segments<br>' +
+    Object.entries(counts).map(([s,c]) => s + ': ' + c).join(' - ');
+}
+
+const meshMap = {};
+function toggle(system, visible) {
+  Object.entries(meshMap).forEach(([id, mesh]) => {
+    if (mesh.userData.seg.system_type === system) mesh.visible = visible;
+  });
+}
+
+function buildScene(segments) {
+  let sumX = 0, sumY = 0, sumZ = 0;
+  segments.forEach(s => {
+    sumX += (parseFloat(s.start_x) + parseFloat(s.end_x)) / 2;
+    sumY += (parseFloat(s.start_y) + parseFloat(s.end_y)) / 2;
+    sumZ += (parseFloat(s.start_z) + parseFloat(s.end_z)) / 2;
+  });
+  const cx = sumX/segments.length, cy = sumY/segments.length, cz = sumZ/segments.length;
+  let maxDist = 0;
+  segments.forEach(s => {
+    const d = Math.sqrt(Math.pow(parseFloat(s.start_x)-cx,2)+Math.pow(parseFloat(s.start_y)-cy,2));
+    if (d > maxDist) maxDist = d;
+  });
+  radius = Math.max(maxDist * 2.5, 5000);
+  target.set(0, 0, 0);
+
+  segments.forEach(seg => {
+    const cfg = SYSTEMS[seg.system_type] || { color: 0x888888 };
+    const sx = parseFloat(seg.start_x)-cx, sy = parseFloat(seg.start_z)-cz, sz = -(parseFloat(seg.start_y)-cy);
+    const ex = parseFloat(seg.end_x)-cx,   ey = parseFloat(seg.end_z)-cz,   ez = -(parseFloat(seg.end_y)-cy);
+    const start = new THREE.Vector3(sx, sy, sz);
+    const end   = new THREE.Vector3(ex, ey, ez);
+    const path  = new THREE.LineCurve3(start, end);
+    const r     = seg.od_mm ? parseFloat(seg.od_mm)/2 : 25;
+    const geo   = new THREE.TubeGeometry(path, 1, r, 8, false);
+    const mat   = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.5, metalness: 0.2 });
+    const mesh  = new THREE.Mesh(geo, mat);
+    mesh.userData.seg = seg;
+    scene.add(mesh);
+    clickables.push(mesh);
+    meshMap[seg.global_id] = mesh;
+  });
+  camPos();
+  document.getElementById('loading').style.display = 'none';
+}
+
+fetch('/api/wetkit/projects/' + PROJECT_ID + '/segments', { headers: HEADERS })
+  .then(r => r.json())
+  .then(data => {
+    buildUI(data.segments);
+    buildScene(data.segments);
+  })
+  .catch(err => {
+    document.getElementById('loading').innerHTML = '<p style="color:#ef4444">Error: ' + err.message + '</p>';
+  });
+
+(function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+})();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

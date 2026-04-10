@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WetKit OS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0f1a; color: #e2e8f0; font-family: monospace; min-height: 100vh; }
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px; border-bottom: 1px solid #1f2937; background: #0d1117;
+    }
+    nav h1 { font-size: 16px; color: #3b82f6; }
+    nav p { font-size: 10px; color: #6b7280; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-user { font-size: 12px; color: #9ca3af; }
+    .nav-btn { padding: 6px 14px; font-size: 11px; font-family: monospace; border-radius: 4px; cursor: pointer; border: none; text-decoration: none; }
+    .nav-btn-outline { background: transparent; color: #6b7280; border: 1px solid #1f2937; }
+    .nav-btn-outline:hover { color: #e2e8f0; border-color: #374151; }
+    main { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+    .project-card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 28px; margin-bottom: 32px; }
+    .project-card h2 { font-size: 18px; color: #e2e8f0; margin-bottom: 4px; }
+    .project-card p { font-size: 12px; color: #6b7280; margin-bottom: 20px; }
+    .project-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat { background: #0a0f1a; border: 1px solid #1f2937; border-radius: 6px; padding: 12px; }
+    .stat label { font-size: 10px; color: #6b7280; display: block; margin-bottom: 2px; }
+    .stat span { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+    .flow { display: flex; flex-direction: column; gap: 12px; }
+    .step {
+      display: flex; align-items: center; gap: 16px;
+      background: #0a0f1a; border: 1px solid #1f2937;
+      border-radius: 8px; padding: 16px 20px;
+      text-decoration: none; color: inherit;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .step:hover { border-color: #3b82f6; background: #0d1b2e; }
+    .step.done { border-color: #16a34a33; }
+    .step.active { border-color: #3b82f6; background: #0d1b2e; }
+    .step-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+    .step-num.done { background: #052e16; color: #86efac; }
+    .step-num.active { background: #1d4ed8; color: white; }
+    .step-num.pending { background: #1f2937; color: #4b5563; }
+    .step-info { flex: 1; }
+    .step-info h3 { font-size: 13px; color: #e2e8f0; margin-bottom: 2px; }
+    .step-info p { font-size: 11px; color: #6b7280; }
+    .step-badge { font-size: 10px; padding: 3px 8px; border-radius: 3px; font-weight: 600; }
+    .badge-done { background: #052e16; color: #86efac; }
+    .badge-active { background: #1e3a5f; color: #93c5fd; }
+    .badge-pending { background: #1f2937; color: #4b5563; }
+    .step-arrow { color: #374151; font-size: 14px; }
+    #loadingOverlay { position: fixed; inset: 0; background: #0a0f1a; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 100; }
+    .spin { width: 28px; height: 28px; border: 2px solid #1f2937; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingOverlay p { font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="spin"></div><p>Loading...</p></div>
+
+<nav>
+  <div><h1>WetKit OS</h1><p>Single line. Full spool. Pre-fab ready.</p></div>
+  <div class="nav-right">
+    <span class="nav-user" id="navUser"></span>
+    <a href="/projects.html" class="nav-btn nav-btn-outline">Projects</a>
+    <a href="#" class="nav-btn nav-btn-outline" id="logoutBtn">Sign out</a>
+  </div>
+</nav>
+
+<main id="mainContent" style="display:none">
+  <div class="project-card">
+    <h2 id="projectTitle">My project</h2>
+    <p id="projectSub">Upload an IFC file to get started</p>
+    <div class="project-stats">
+      <div class="stat"><label>Segments</label><span id="statSegments">0</span></div>
+      <div class="stat"><label>Spools</label><span id="statSpools">0</span></div>
+      <div class="stat"><label>Pipe length</label><span id="statLength">0m</span></div>
+      <div class="stat"><label>BOM total</label><span id="statBOM">—</span></div>
+      <div class="stat"><label>Systems</label><span id="statSystems">0</span></div>
+      <div class="stat"><label>IDS compliance</label><span style="color:#86efac">100%</span></div>
+    </div>
+    <div class="flow">
+      <a class="step done" href="/upload.html">
+        <div class="step-num done">1</div>
+        <div class="step-info"><h3>Upload IFC file</h3><p>BricsCAD AX-3000 single-line format · IFC4 only</p></div>
+        <span class="step-badge badge-done" id="step1badge">Upload →</span>
+        <span class="step-arrow">›</span>
+      </a>
+      <a class="step" href="/viewer.html" id="step2">
+        <div class="step-num pending" id="step2num">2</div>
+        <div class="step-info"><h3>View in 3D</h3><p>Orbit, zoom and inspect each pipe segment</p></div>
+        <span class="step-badge badge-pending" id="step2badge">Waiting</span>
+        <span class="step-arrow">›</span>
+      </a>
+      <a class="step" href="/spools.html" id="step3">
+        <div class="step-num pending" id="step3num">3</div>
+        <div class="step-info"><h3>Generate spools</h3><p>Split into 2m pre-fab units · IS 2065 DFU checked</p></div>
+        <span class="step-badge badge-pending" id="step3badge">Waiting</span>
+        <span class="step-arrow">›</span>
+      </a>
+      <a class="step" href="/spools.html" id="step4">
+        <div class="step-num pending" id="step4num">4</div>
+        <div class="step-info"><h3>Review BOM</h3><p>Cut list · IS 1239 specs · CPWD DSR 2023 rates</p></div>
+        <span class="step-badge badge-pending" id="step4badge">Waiting</span>
+        <span class="step-arrow">›</span>
+      </a>
+      <a class="step" href="/spools.html" id="step5">
+        <div class="step-num pending" id="step5num">5</div>
+        <div class="step-info"><h3>Export cut list</h3><p>CSV download · ready for fabrication</p></div>
+        <span class="step-badge badge-pending" id="step5badge">Waiting</span>
+        <span class="step-arrow">›</span>
+      </a>
+    </div>
+  </div>
+</main>
+
+<script>
+const TOKEN      = localStorage.getItem('wk_token');
+const TENANT_ID  = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+const PROJECT_ID = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+const NAME       = localStorage.getItem('wk_name')    || '';
+
+if (!TOKEN) { window.location.href = '/login.html'; }
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'x-tenant-id': TENANT_ID,
+  'Authorization': 'Bearer ' + (TOKEN || '')
+};
+
+document.getElementById('navUser').textContent = NAME;
+document.getElementById('logoutBtn').addEventListener('click', function(e) {
+  e.preventDefault();
+  localStorage.clear();
+  window.location.href = '/login.html';
+});
+
+function setStep(num, state, badge) {
+  var numEl   = document.getElementById('step' + num + 'num');
+  var badgeEl = document.getElementById('step' + num + 'badge');
+  var stepEl  = document.getElementById('step' + num);
+  if (!numEl) return;
+  numEl.className   = 'step-num ' + state;
+  badgeEl.className = 'step-badge badge-' + state;
+  badgeEl.textContent = badge;
+  if (state === 'done')   stepEl.classList.add('done');
+  if (state === 'active') stepEl.classList.add('active');
+}
+
+async function load() {
+  try {
+    var segRes   = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/segments', { headers: HEADERS });
+    var spoolRes = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/spools',   { headers: HEADERS });
+    var bomRes   = await fetch('/api/wetkit/projects/' + PROJECT_ID + '/bom',      { headers: HEADERS });
+
+    var segData   = await segRes.json();
+    var spoolData = await spoolRes.json();
+    var bomData   = await bomRes.json();
+
+    var segCount   = segData.count   || 0;
+    var spoolCount = spoolData.count || 0;
+    var spools     = spoolData.spools || [];
+    var totalMm    = spools.reduce(function(s,r) { return s + parseFloat(r.total_length_mm||0); }, 0);
+    var systems    = [...new Set(spools.map(function(s) { return s.system_type; }))];
+
+    document.getElementById('statSegments').textContent = segCount;
+    document.getElementById('statSpools').textContent   = spoolCount;
+    document.getElementById('statLength').textContent   = (totalMm/1000).toFixed(1) + 'm';
+    document.getElementById('statBOM').textContent      = bomData.grandTotalINR ? '₹' + bomData.grandTotalINR.toLocaleString('en-IN') : '—';
+    document.getElementById('statSystems').textContent  = systems.length;
+    document.getElementById('projectTitle').textContent = NAME + "'s project";
+
+    if (segCount > 0) {
+      document.getElementById('projectSub').textContent = segCount + ' segments · ' + systems.join(', ');
+      setStep(2, 'done', 'View →');
+      document.getElementById('step1badge').textContent = 'Re-upload →';
+    }
+    if (spoolCount > 0) {
+      setStep(3, 'done', spoolCount + ' spools →');
+      setStep(4, 'done', 'Review →');
+      setStep(5, 'active', 'Export →');
+    } else if (segCount > 0) {
+      setStep(3, 'active', 'Generate →');
+    }
+  } catch(e) {
+    document.getElementById('projectSub').textContent = 'Error: ' + e.message;
+  }
+  document.getElementById('loadingOverlay').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+}
+
+load();
+</script>
+</body>
+</html>
