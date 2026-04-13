@@ -39,6 +39,8 @@ const exportRouter = require('./routes/export');
 app.use('/api/wetkit/projects', exportRouter);
 const pdfRouter = require('./routes/pdf');
 app.use('/api/wetkit/projects', pdfRouter);
+const sketchRouter = require('./routes/sketch');
+app.use('/api/wetkit/projects', sketchRouter);
 const authRouter = require('./routes/auth');
 app.use('/api/auth', authRouter);
 

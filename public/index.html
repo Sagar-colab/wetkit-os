@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WetKit OS</title>
+  <title>dttradesman.ai</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #0a0f1a; color: #e2e8f0; font-family: monospace; min-height: 100vh; }
@@ -60,7 +60,7 @@
 <div id="loadingOverlay"><div class="spin"></div><p>Loading...</p></div>
 
 <nav>
-  <div><h1>WetKit OS</h1><p>Single line. Full spool. Pre-fab ready.</p></div>
+  <div><h1>dttradesman.ai</h1><p>Single line. Full spool. Pre-fab ready.</p></div>
   <div class="nav-right">
     <span class="nav-user" id="navUser"></span>
     <a href="/projects.html" class="nav-btn nav-btn-outline">Projects</a>
@@ -81,12 +81,19 @@
       <div class="stat"><label>IDS compliance</label><span style="color:#86efac">100%</span></div>
     </div>
     <div class="flow">
-      <a class="step done" href="/upload.html">
+      <a class="step done" href="/upload.html" id="step1link">
         <div class="step-num done">1</div>
         <div class="step-info"><h3>Upload IFC file</h3><p>BricsCAD AX-3000 single-line format · IFC4 only</p></div>
         <span class="step-badge badge-done" id="step1badge">Upload →</span>
         <span class="step-arrow">›</span>
       </a>
+      <div style="text-align:center;margin:-8px 0 8px;font-size:11px;color:#6b7280;font-family:monospace">— or —</div>
+      <div class="step" onclick="openSketch()" style="cursor:pointer;border-color:#0D948833">
+        <div class="step-num done" style="background:#0D948822;color:#0D9488">✏</div>
+        <div class="step-info"><h3>Sketch pipe layout</h3><p>Draw pipes directly · no IFC file needed</p></div>
+        <span class="step-badge badge-done" style="background:#0D948822;color:#0D9488">Sketch →</span>
+        <span class="step-arrow">›</span>
+      </div>
       <a class="step" href="/viewer.html" id="step2">
         <div class="step-num pending" id="step2num">2</div>
         <div class="step-info"><h3>View in 3D</h3><p>Orbit, zoom and inspect each pipe segment</p></div>
@@ -194,3 +201,951 @@ load();
 </script>
 </body>
 </html>
+<style>
+#sketchModal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); z-index: 100;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+}
+#sketchModal.open { display: flex; }
+#sketchWrap {
+  background: #111827; border: 1px solid #1f2937;
+  border-radius: 12px; padding: 20px;
+  width: min(95vw, 700px);
+}
+#sketchWrap h2 { font-size: 14px; color: #e2e8f0; margin-bottom: 4px; font-family: monospace; }
+#sketchWrap p { font-size: 11px; color: #6b7280; margin-bottom: 14px; font-family: monospace; }
+.sketch-toolbar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 12px; align-items: center;
+}
+.sketch-toolbar label { font-size: 10px; color: #6b7280; font-family: monospace; }
+.sketch-toolbar select, .sketch-toolbar input {
+  background: #0a0f1a; border: 1px solid #1f2937;
+  color: #e2e8f0; font-family: monospace; font-size: 11px;
+  padding: 4px 8px; border-radius: 4px;
+}
+#sketchCanvas {
+  border: 1px solid #1f2937; border-radius: 8px;
+  cursor: crosshair; display: block;
+  background: #0a0f1a; touch-action: none;
+}
+.sketch-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.sk-btn {
+  padding: 8px 16px; font-size: 11px; font-family: monospace;
+  border-radius: 6px; cursor: pointer; border: none;
+}
+.sk-btn-primary { background: #1d4ed8; color: white; }
+.sk-btn-danger  { background: #2d0a0a; color: #fca5a5; border: 1px solid #dc262633; }
+.sk-btn-success { background: #065f46; color: #6ee7b7; border: 1px solid #059669; }
+.sk-btn-outline { background: transparent; color: #6b7280; border: 1px solid #1f2937; }
+.sys-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+#sketchStatus { font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 8px; }
+#gridToggle { font-size: 10px; color: #6b7280; font-family: monospace; cursor: pointer; }
+</style>
+
+<div id="sketchModal">
+  <div id="sketchWrap">
+    <h2>Sketch pipe layout</h2>
+    <p>Draw pipe runs · click and drag · each line = one segment</p>
+
+    <div class="sketch-toolbar">
+      <div>
+        <label>System</label><br>
+        <select id="skSystem">
+          <option value="CW">🔵 Cold water (CW)</option>
+          <option value="HW">🔴 Hot water (HW)</option>
+          <option value="HWR">🟠 Hot water return (HWR)</option>
+          <option value="FWS">🔴 Fire water (FWS)</option>
+          <option value="SOIL">⚫ Soil stack (SOIL)</option>
+          <option value="WASTE">⚫ Waste (WASTE)</option>
+          <option value="VENT">🟢 Vent (VENT)</option>
+        </select>
+      </div>
+      <div>
+        <label>DN size (mm)</label><br>
+        <select id="skDN">
+          <option value="15">DN 15</option>
+          <option value="20" selected>DN 20</option>
+          <option value="25">DN 25</option>
+          <option value="32">DN 32</option>
+          <option value="40">DN 40</option>
+          <option value="50">DN 50</option>
+          <option value="63">DN 63</option>
+          <option value="75">DN 75</option>
+          <option value="110">DN 110</option>
+        </select>
+      </div>
+      <div>
+        <label>Floor</label><br>
+        <select id="skFloor">
+          <option value="GF">Ground floor</option>
+          <option value="FF">First floor</option>
+          <option value="SF">Second floor</option>
+          <option value="TF">Third floor</option>
+        </select>
+      </div>
+      <div>
+        <label>Scale (mm/px)</label><br>
+        <input type="number" id="skScale" value="100" min="10" max="1000" style="width:70px">
+      </div>
+      <div style="align-self:flex-end">
+        <label id="gridToggle" onclick="toggleGrid()">⊞ Grid on</label>
+      </div>
+    </div>
+
+    <canvas id="sketchCanvas" width="650" height="380"></canvas>
+    <div id="sketchStatus">0 lines drawn · click and drag to draw pipes</div>
+
+    <div class="sketch-actions">
+      <button class="sk-btn sk-btn-success" onclick="convertSketch()">→ Convert to 3D</button>
+      <button class="sk-btn sk-btn-danger"  onclick="undoLast()">↩ Undo</button>
+      <button class="sk-btn sk-btn-danger"  onclick="clearSketch()">✕ Clear all</button>
+      <button class="sk-btn sk-btn-outline" onclick="closeSketch()">Cancel</button>
+    </div>
+    <div id="sketchStatus2"></div>
+  </div>
+</div>
+
+<script>
+const SYS_COLORS = {
+  CW:'#2563EB', HW:'#DC2626', HWR:'#F97316', FWS:'#EF4444',
+  SOIL:'#44403c', WASTE:'#78716C', VENT:'#0D9488', SWD:'#16A34A'
+};
+
+const canvas  = document.getElementById('sketchCanvas');
+const ctx     = canvas.getContext('2d');
+let lines     = [];
+let drawing   = false;
+let startX = 0, startY = 0;
+let showGrid  = true;
+let snapToGrid = true;
+const GRID = 20;
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  if (e.touches) {
+    return {
+      x: (e.touches[0].clientX - rect.left) * scaleX,
+      y: (e.touches[0].clientY - rect.top)  * scaleY
+    };
+  }
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY
+  };
+}
+
+function snap(v) {
+  return snapToGrid ? Math.round(v / GRID) * GRID : v;
+}
+
+function drawGrid() {
+  if (!showGrid) return;
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= canvas.width; x += GRID) {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += GRID) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+}
+
+function redraw(previewLine) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  lines.forEach(l => {
+    const color = SYS_COLORS[l.system] || '#888';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, l.dn / 15);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(l.x1, l.y1);
+    ctx.lineTo(l.x2, l.y2);
+    ctx.stroke();
+    // End dots
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(l.x1, l.y1, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(l.x2, l.y2, 3, 0, Math.PI*2); ctx.fill();
+    // DN label
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('DN' + l.dn, (l.x1+l.x2)/2 - 10, (l.y1+l.y2)/2 - 5);
+  });
+  if (previewLine) {
+    ctx.strokeStyle = SYS_COLORS[previewLine.system] || '#888';
+    ctx.lineWidth = Math.max(2, previewLine.dn / 15);
+    ctx.setLineDash([5,5]);
+    ctx.beginPath();
+    ctx.moveTo(previewLine.x1, previewLine.y1);
+    ctx.lineTo(previewLine.x2, previewLine.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  document.getElementById('sketchStatus').textContent =
+    lines.length + ' lines drawn · ' +
+    [...new Set(lines.map(l => l.system))].join(', ') || 'click and drag to draw pipes';
+}
+
+canvas.addEventListener('mousedown', e => {
+  const p = getPos(e);
+  drawing = true;
+  startX = snap(p.x); startY = snap(p.y);
+});
+canvas.addEventListener('mousemove', e => {
+  if (!drawing) return;
+  const p = getPos(e);
+  redraw({
+    x1: startX, y1: startY,
+    x2: snap(p.x), y2: snap(p.y),
+    system: document.getElementById('skSystem').value,
+    dn: parseInt(document.getElementById('skDN').value)
+  });
+});
+canvas.addEventListener('mouseup', e => {
+  if (!drawing) return;
+  drawing = false;
+  const p = getPos(e);
+  const x2 = snap(p.x), y2 = snap(p.y);
+  const len = Math.sqrt(Math.pow(x2-startX,2) + Math.pow(y2-startY,2));
+  if (len > 5) {
+    lines.push({
+      x1: startX, y1: startY, x2, y2,
+      system: document.getElementById('skSystem').value,
+      dn: parseInt(document.getElementById('skDN').value),
+      floor: document.getElementById('skFloor').value
+    });
+  }
+  redraw();
+});
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const p = getPos(e);
+  drawing = true;
+  startX = snap(p.x); startY = snap(p.y);
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!drawing) return;
+  const p = getPos(e);
+  redraw({
+    x1: startX, y1: startY,
+    x2: snap(p.x), y2: snap(p.y),
+    system: document.getElementById('skSystem').value,
+    dn: parseInt(document.getElementById('skDN').value)
+  });
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!drawing) return;
+  drawing = false;
+  const p = { x: snap(parseFloat(canvas.dataset.lx||0)), y: snap(parseFloat(canvas.dataset.ly||0)) };
+  redraw();
+}, { passive: false });
+
+function toggleGrid() {
+  showGrid = !showGrid;
+  snapToGrid = showGrid;
+  document.getElementById('gridToggle').textContent = showGrid ? '⊞ Grid on' : '⊞ Grid off';
+  redraw();
+}
+
+function undoLast() {
+  lines.pop();
+  redraw();
+}
+
+function clearSketch() {
+  if (lines.length && !confirm('Clear all lines?')) return;
+  lines = [];
+  redraw();
+}
+
+function openSketch() {
+  document.getElementById('sketchModal').classList.add('open');
+  redraw();
+}
+
+function closeSketch() {
+  document.getElementById('sketchModal').classList.remove('open');
+}
+
+async function convertSketch() {
+  if (!lines.length) { alert('Draw some pipes first'); return; }
+  const pid = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+  const tid = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+  const tok = localStorage.getItem('wk_token')   || '';
+  const scale = parseFloat(document.getElementById('skScale').value) || 100;
+
+  document.getElementById('sketchStatus2').textContent = 'Converting...';
+  try {
+    const r = await fetch('/api/wetkit/projects/' + pid + '/sketch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tenant-id': tid,
+        'Authorization': 'Bearer ' + tok
+      },
+      body: JSON.stringify({ lines, scale_mm_per_px: scale })
+    });
+    const data = await r.json();
+    if (!r.ok) { document.getElementById('sketchStatus2').textContent = 'Error: ' + data.error; return; }
+
+    // Auto generate spools + BOM
+    await fetch('/api/wetkit/projects/' + pid + '/spools/generate',
+      { method: 'POST', headers: { 'x-tenant-id': tid, 'Authorization': 'Bearer ' + tok } });
+    await fetch('/api/wetkit/projects/' + pid + '/bom/generate',
+      { method: 'POST', headers: { 'x-tenant-id': tid, 'Authorization': 'Bearer ' + tok } });
+
+    document.getElementById('sketchStatus2').textContent =
+      '✓ ' + data.segments + ' segments created · redirecting to 3D viewer...';
+    setTimeout(() => {
+      closeSketch();
+      window.location.href = '/viewer.html';
+    }, 1500);
+  } catch(e) {
+    document.getElementById('sketchStatus2').textContent = 'Error: ' + e.message;
+  }
+}
+
+// Initial draw
+redraw();
+</script>
+<style>
+#sketchModal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); z-index: 100;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+}
+#sketchModal.open { display: flex; }
+#sketchWrap {
+  background: #111827; border: 1px solid #1f2937;
+  border-radius: 12px; padding: 20px;
+  width: min(95vw, 700px);
+}
+#sketchWrap h2 { font-size: 14px; color: #e2e8f0; margin-bottom: 4px; font-family: monospace; }
+#sketchWrap p { font-size: 11px; color: #6b7280; margin-bottom: 14px; font-family: monospace; }
+.sketch-toolbar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 12px; align-items: center;
+}
+.sketch-toolbar label { font-size: 10px; color: #6b7280; font-family: monospace; }
+.sketch-toolbar select, .sketch-toolbar input {
+  background: #0a0f1a; border: 1px solid #1f2937;
+  color: #e2e8f0; font-family: monospace; font-size: 11px;
+  padding: 4px 8px; border-radius: 4px;
+}
+#sketchCanvas {
+  border: 1px solid #1f2937; border-radius: 8px;
+  cursor: crosshair; display: block;
+  background: #0a0f1a; touch-action: none;
+}
+.sketch-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.sk-btn {
+  padding: 8px 16px; font-size: 11px; font-family: monospace;
+  border-radius: 6px; cursor: pointer; border: none;
+}
+.sk-btn-primary { background: #1d4ed8; color: white; }
+.sk-btn-danger  { background: #2d0a0a; color: #fca5a5; border: 1px solid #dc262633; }
+.sk-btn-success { background: #065f46; color: #6ee7b7; border: 1px solid #059669; }
+.sk-btn-outline { background: transparent; color: #6b7280; border: 1px solid #1f2937; }
+.sys-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+#sketchStatus { font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 8px; }
+#gridToggle { font-size: 10px; color: #6b7280; font-family: monospace; cursor: pointer; }
+</style>
+
+<div id="sketchModal">
+  <div id="sketchWrap">
+    <h2>Sketch pipe layout</h2>
+    <p>Draw pipe runs · click and drag · each line = one segment</p>
+
+    <div class="sketch-toolbar">
+      <div>
+        <label>System</label><br>
+        <select id="skSystem">
+          <option value="CW">🔵 Cold water (CW)</option>
+          <option value="HW">🔴 Hot water (HW)</option>
+          <option value="HWR">🟠 Hot water return (HWR)</option>
+          <option value="FWS">🔴 Fire water (FWS)</option>
+          <option value="SOIL">⚫ Soil stack (SOIL)</option>
+          <option value="WASTE">⚫ Waste (WASTE)</option>
+          <option value="VENT">🟢 Vent (VENT)</option>
+        </select>
+      </div>
+      <div>
+        <label>DN size (mm)</label><br>
+        <select id="skDN">
+          <option value="15">DN 15</option>
+          <option value="20" selected>DN 20</option>
+          <option value="25">DN 25</option>
+          <option value="32">DN 32</option>
+          <option value="40">DN 40</option>
+          <option value="50">DN 50</option>
+          <option value="63">DN 63</option>
+          <option value="75">DN 75</option>
+          <option value="110">DN 110</option>
+        </select>
+      </div>
+      <div>
+        <label>Floor</label><br>
+        <select id="skFloor">
+          <option value="GF">Ground floor</option>
+          <option value="FF">First floor</option>
+          <option value="SF">Second floor</option>
+          <option value="TF">Third floor</option>
+        </select>
+      </div>
+      <div>
+        <label>Scale (mm/px)</label><br>
+        <input type="number" id="skScale" value="100" min="10" max="1000" style="width:70px">
+      </div>
+      <div style="align-self:flex-end">
+        <label id="gridToggle" onclick="toggleGrid()">⊞ Grid on</label>
+      </div>
+    </div>
+
+    <canvas id="sketchCanvas" width="650" height="380"></canvas>
+    <div id="sketchStatus">0 lines drawn · click and drag to draw pipes</div>
+
+    <div class="sketch-actions">
+      <button class="sk-btn sk-btn-success" onclick="convertSketch()">→ Convert to 3D</button>
+      <button class="sk-btn sk-btn-danger"  onclick="undoLast()">↩ Undo</button>
+      <button class="sk-btn sk-btn-danger"  onclick="clearSketch()">✕ Clear all</button>
+      <button class="sk-btn sk-btn-outline" onclick="closeSketch()">Cancel</button>
+    </div>
+    <div id="sketchStatus2"></div>
+  </div>
+</div>
+
+<script>
+const SYS_COLORS = {
+  CW:'#2563EB', HW:'#DC2626', HWR:'#F97316', FWS:'#EF4444',
+  SOIL:'#44403c', WASTE:'#78716C', VENT:'#0D9488', SWD:'#16A34A'
+};
+
+const canvas  = document.getElementById('sketchCanvas');
+const ctx     = canvas.getContext('2d');
+let lines     = [];
+let drawing   = false;
+let startX = 0, startY = 0;
+let showGrid  = true;
+let snapToGrid = true;
+const GRID = 20;
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  if (e.touches) {
+    return {
+      x: (e.touches[0].clientX - rect.left) * scaleX,
+      y: (e.touches[0].clientY - rect.top)  * scaleY
+    };
+  }
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY
+  };
+}
+
+function snap(v) {
+  return snapToGrid ? Math.round(v / GRID) * GRID : v;
+}
+
+function drawGrid() {
+  if (!showGrid) return;
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= canvas.width; x += GRID) {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += GRID) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+}
+
+function redraw(previewLine) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  lines.forEach(l => {
+    const color = SYS_COLORS[l.system] || '#888';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, l.dn / 15);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(l.x1, l.y1);
+    ctx.lineTo(l.x2, l.y2);
+    ctx.stroke();
+    // End dots
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(l.x1, l.y1, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(l.x2, l.y2, 3, 0, Math.PI*2); ctx.fill();
+    // DN label
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('DN' + l.dn, (l.x1+l.x2)/2 - 10, (l.y1+l.y2)/2 - 5);
+  });
+  if (previewLine) {
+    ctx.strokeStyle = SYS_COLORS[previewLine.system] || '#888';
+    ctx.lineWidth = Math.max(2, previewLine.dn / 15);
+    ctx.setLineDash([5,5]);
+    ctx.beginPath();
+    ctx.moveTo(previewLine.x1, previewLine.y1);
+    ctx.lineTo(previewLine.x2, previewLine.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  document.getElementById('sketchStatus').textContent =
+    lines.length + ' lines drawn · ' +
+    [...new Set(lines.map(l => l.system))].join(', ') || 'click and drag to draw pipes';
+}
+
+canvas.addEventListener('mousedown', e => {
+  const p = getPos(e);
+  drawing = true;
+  startX = snap(p.x); startY = snap(p.y);
+});
+canvas.addEventListener('mousemove', e => {
+  if (!drawing) return;
+  const p = getPos(e);
+  redraw({
+    x1: startX, y1: startY,
+    x2: snap(p.x), y2: snap(p.y),
+    system: document.getElementById('skSystem').value,
+    dn: parseInt(document.getElementById('skDN').value)
+  });
+});
+canvas.addEventListener('mouseup', e => {
+  if (!drawing) return;
+  drawing = false;
+  const p = getPos(e);
+  const x2 = snap(p.x), y2 = snap(p.y);
+  const len = Math.sqrt(Math.pow(x2-startX,2) + Math.pow(y2-startY,2));
+  if (len > 5) {
+    lines.push({
+      x1: startX, y1: startY, x2, y2,
+      system: document.getElementById('skSystem').value,
+      dn: parseInt(document.getElementById('skDN').value),
+      floor: document.getElementById('skFloor').value
+    });
+  }
+  redraw();
+});
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const p = getPos(e);
+  drawing = true;
+  startX = snap(p.x); startY = snap(p.y);
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!drawing) return;
+  const p = getPos(e);
+  redraw({
+    x1: startX, y1: startY,
+    x2: snap(p.x), y2: snap(p.y),
+    system: document.getElementById('skSystem').value,
+    dn: parseInt(document.getElementById('skDN').value)
+  });
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!drawing) return;
+  drawing = false;
+  const p = { x: snap(parseFloat(canvas.dataset.lx||0)), y: snap(parseFloat(canvas.dataset.ly||0)) };
+  redraw();
+}, { passive: false });
+
+function toggleGrid() {
+  showGrid = !showGrid;
+  snapToGrid = showGrid;
+  document.getElementById('gridToggle').textContent = showGrid ? '⊞ Grid on' : '⊞ Grid off';
+  redraw();
+}
+
+function undoLast() {
+  lines.pop();
+  redraw();
+}
+
+function clearSketch() {
+  if (lines.length && !confirm('Clear all lines?')) return;
+  lines = [];
+  redraw();
+}
+
+function openSketch() {
+  document.getElementById('sketchModal').classList.add('open');
+  redraw();
+}
+
+function closeSketch() {
+  document.getElementById('sketchModal').classList.remove('open');
+}
+
+async function convertSketch() {
+  if (!lines.length) { alert('Draw some pipes first'); return; }
+  const pid = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+  const tid = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+  const tok = localStorage.getItem('wk_token')   || '';
+  const scale = parseFloat(document.getElementById('skScale').value) || 100;
+
+  document.getElementById('sketchStatus2').textContent = 'Converting...';
+  try {
+    const r = await fetch('/api/wetkit/projects/' + pid + '/sketch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tenant-id': tid,
+        'Authorization': 'Bearer ' + tok
+      },
+      body: JSON.stringify({ lines, scale_mm_per_px: scale })
+    });
+    const data = await r.json();
+    if (!r.ok) { document.getElementById('sketchStatus2').textContent = 'Error: ' + data.error; return; }
+
+    // Auto generate spools + BOM
+    await fetch('/api/wetkit/projects/' + pid + '/spools/generate',
+      { method: 'POST', headers: { 'x-tenant-id': tid, 'Authorization': 'Bearer ' + tok } });
+    await fetch('/api/wetkit/projects/' + pid + '/bom/generate',
+      { method: 'POST', headers: { 'x-tenant-id': tid, 'Authorization': 'Bearer ' + tok } });
+
+    document.getElementById('sketchStatus2').textContent =
+      '✓ ' + data.segments + ' segments created · redirecting to 3D viewer...';
+    setTimeout(() => {
+      closeSketch();
+      window.location.href = '/viewer.html';
+    }, 1500);
+  } catch(e) {
+    document.getElementById('sketchStatus2').textContent = 'Error: ' + e.message;
+  }
+}
+
+// Initial draw
+redraw();
+</script>
+<style>
+#sketchModal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); z-index: 100;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+}
+#sketchModal.open { display: flex; }
+#sketchWrap {
+  background: #111827; border: 1px solid #1f2937;
+  border-radius: 12px; padding: 20px;
+  width: min(95vw, 700px);
+}
+#sketchWrap h2 { font-size: 14px; color: #e2e8f0; margin-bottom: 4px; font-family: monospace; }
+#sketchWrap p { font-size: 11px; color: #6b7280; margin-bottom: 14px; font-family: monospace; }
+.sketch-toolbar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 12px; align-items: center;
+}
+.sketch-toolbar label { font-size: 10px; color: #6b7280; font-family: monospace; }
+.sketch-toolbar select, .sketch-toolbar input {
+  background: #0a0f1a; border: 1px solid #1f2937;
+  color: #e2e8f0; font-family: monospace; font-size: 11px;
+  padding: 4px 8px; border-radius: 4px;
+}
+#sketchCanvas {
+  border: 1px solid #1f2937; border-radius: 8px;
+  cursor: crosshair; display: block;
+  background: #0a0f1a; touch-action: none;
+}
+.sketch-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.sk-btn {
+  padding: 8px 16px; font-size: 11px; font-family: monospace;
+  border-radius: 6px; cursor: pointer; border: none;
+}
+.sk-btn-primary { background: #1d4ed8; color: white; }
+.sk-btn-danger  { background: #2d0a0a; color: #fca5a5; border: 1px solid #dc262633; }
+.sk-btn-success { background: #065f46; color: #6ee7b7; border: 1px solid #059669; }
+.sk-btn-outline { background: transparent; color: #6b7280; border: 1px solid #1f2937; }
+.sys-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+#sketchStatus { font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 8px; }
+#gridToggle { font-size: 10px; color: #6b7280; font-family: monospace; cursor: pointer; }
+</style>
+
+<div id="sketchModal">
+  <div id="sketchWrap">
+    <h2>Sketch pipe layout</h2>
+    <p>Draw pipe runs · click and drag · each line = one segment</p>
+
+    <div class="sketch-toolbar">
+      <div>
+        <label>System</label><br>
+        <select id="skSystem">
+          <option value="CW">🔵 Cold water (CW)</option>
+          <option value="HW">🔴 Hot water (HW)</option>
+          <option value="HWR">🟠 Hot water return (HWR)</option>
+          <option value="FWS">🔴 Fire water (FWS)</option>
+          <option value="SOIL">⚫ Soil stack (SOIL)</option>
+          <option value="WASTE">⚫ Waste (WASTE)</option>
+          <option value="VENT">🟢 Vent (VENT)</option>
+        </select>
+      </div>
+      <div>
+        <label>DN size (mm)</label><br>
+        <select id="skDN">
+          <option value="15">DN 15</option>
+          <option value="20" selected>DN 20</option>
+          <option value="25">DN 25</option>
+          <option value="32">DN 32</option>
+          <option value="40">DN 40</option>
+          <option value="50">DN 50</option>
+          <option value="63">DN 63</option>
+          <option value="75">DN 75</option>
+          <option value="110">DN 110</option>
+        </select>
+      </div>
+      <div>
+        <label>Floor</label><br>
+        <select id="skFloor">
+          <option value="GF">Ground floor</option>
+          <option value="FF">First floor</option>
+          <option value="SF">Second floor</option>
+          <option value="TF">Third floor</option>
+        </select>
+      </div>
+      <div>
+        <label>Scale (mm/px)</label><br>
+        <input type="number" id="skScale" value="100" min="10" max="1000" style="width:70px">
+      </div>
+      <div style="align-self:flex-end">
+        <label id="gridToggle" onclick="toggleGrid()">⊞ Grid on</label>
+      </div>
+    </div>
+
+    <canvas id="sketchCanvas" width="650" height="380"></canvas>
+    <div id="sketchStatus">0 lines drawn · click and drag to draw pipes</div>
+
+    <div class="sketch-actions">
+      <button class="sk-btn sk-btn-success" onclick="convertSketch()">→ Convert to 3D</button>
+      <button class="sk-btn sk-btn-danger"  onclick="undoLast()">↩ Undo</button>
+      <button class="sk-btn sk-btn-danger"  onclick="clearSketch()">✕ Clear all</button>
+      <button class="sk-btn sk-btn-outline" onclick="closeSketch()">Cancel</button>
+    </div>
+    <div id="sketchStatus2"></div>
+  </div>
+</div>
+
+<script>
+const SYS_COLORS = {
+  CW:'#2563EB', HW:'#DC2626', HWR:'#F97316', FWS:'#EF4444',
+  SOIL:'#44403c', WASTE:'#78716C', VENT:'#0D9488', SWD:'#16A34A'
+};
+
+const canvas  = document.getElementById('sketchCanvas');
+const ctx     = canvas.getContext('2d');
+let lines     = [];
+let drawing   = false;
+let startX = 0, startY = 0;
+let showGrid  = true;
+let snapToGrid = true;
+const GRID = 20;
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  if (e.touches) {
+    return {
+      x: (e.touches[0].clientX - rect.left) * scaleX,
+      y: (e.touches[0].clientY - rect.top)  * scaleY
+    };
+  }
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY
+  };
+}
+
+function snap(v) {
+  return snapToGrid ? Math.round(v / GRID) * GRID : v;
+}
+
+function drawGrid() {
+  if (!showGrid) return;
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= canvas.width; x += GRID) {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += GRID) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+}
+
+function redraw(previewLine) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  lines.forEach(l => {
+    const color = SYS_COLORS[l.system] || '#888';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, l.dn / 15);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(l.x1, l.y1);
+    ctx.lineTo(l.x2, l.y2);
+    ctx.stroke();
+    // End dots
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(l.x1, l.y1, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(l.x2, l.y2, 3, 0, Math.PI*2); ctx.fill();
+    // DN label
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('DN' + l.dn, (l.x1+l.x2)/2 - 10, (l.y1+l.y2)/2 - 5);
+  });
+  if (previewLine) {
+    ctx.strokeStyle = SYS_COLORS[previewLine.system] || '#888';
+    ctx.lineWidth = Math.max(2, previewLine.dn / 15);
+    ctx.setLineDash([5,5]);
+    ctx.beginPath();
+    ctx.moveTo(previewLine.x1, previewLine.y1);
+    ctx.lineTo(previewLine.x2, previewLine.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  document.getElementById('sketchStatus').textContent =
+    lines.length + ' lines drawn · ' +
+    [...new Set(lines.map(l => l.system))].join(', ') || 'click and drag to draw pipes';
+}
+
+canvas.addEventListener('mousedown', e => {
+  const p = getPos(e);
+  drawing = true;
+  startX = snap(p.x); startY = snap(p.y);
+});
+canvas.addEventListener('mousemove', e => {
+  if (!drawing) return;
+  const p = getPos(e);
+  redraw({
+    x1: startX, y1: startY,
+    x2: snap(p.x), y2: snap(p.y),
+    system: document.getElementById('skSystem').value,
+    dn: parseInt(document.getElementById('skDN').value)
+  });
+});
+canvas.addEventListener('mouseup', e => {
+  if (!drawing) return;
+  drawing = false;
+  const p = getPos(e);
+  const x2 = snap(p.x), y2 = snap(p.y);
+  const len = Math.sqrt(Math.pow(x2-startX,2) + Math.pow(y2-startY,2));
+  if (len > 5) {
+    lines.push({
+      x1: startX, y1: startY, x2, y2,
+      system: document.getElementById('skSystem').value,
+      dn: parseInt(document.getElementById('skDN').value),
+      floor: document.getElementById('skFloor').value
+    });
+  }
+  redraw();
+});
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const p = getPos(e);
+  drawing = true;
+  startX = snap(p.x); startY = snap(p.y);
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!drawing) return;
+  const p = getPos(e);
+  redraw({
+    x1: startX, y1: startY,
+    x2: snap(p.x), y2: snap(p.y),
+    system: document.getElementById('skSystem').value,
+    dn: parseInt(document.getElementById('skDN').value)
+  });
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!drawing) return;
+  drawing = false;
+  const p = { x: snap(parseFloat(canvas.dataset.lx||0)), y: snap(parseFloat(canvas.dataset.ly||0)) };
+  redraw();
+}, { passive: false });
+
+function toggleGrid() {
+  showGrid = !showGrid;
+  snapToGrid = showGrid;
+  document.getElementById('gridToggle').textContent = showGrid ? '⊞ Grid on' : '⊞ Grid off';
+  redraw();
+}
+
+function undoLast() {
+  lines.pop();
+  redraw();
+}
+
+function clearSketch() {
+  if (lines.length && !confirm('Clear all lines?')) return;
+  lines = [];
+  redraw();
+}
+
+function openSketch() {
+  document.getElementById('sketchModal').classList.add('open');
+  redraw();
+}
+
+function closeSketch() {
+  document.getElementById('sketchModal').classList.remove('open');
+}
+
+async function convertSketch() {
+  if (!lines.length) { alert('Draw some pipes first'); return; }
+  const pid = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+  const tid = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+  const tok = localStorage.getItem('wk_token')   || '';
+  const scale = parseFloat(document.getElementById('skScale').value) || 100;
+
+  document.getElementById('sketchStatus2').textContent = 'Converting...';
+  try {
+    const r = await fetch('/api/wetkit/projects/' + pid + '/sketch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tenant-id': tid,
+        'Authorization': 'Bearer ' + tok
+      },
+      body: JSON.stringify({ lines, scale_mm_per_px: scale })
+    });
+    const data = await r.json();
+    if (!r.ok) { document.getElementById('sketchStatus2').textContent = 'Error: ' + data.error; return; }
+
+    // Auto generate spools + BOM
+    await fetch('/api/wetkit/projects/' + pid + '/spools/generate',
+      { method: 'POST', headers: { 'x-tenant-id': tid, 'Authorization': 'Bearer ' + tok } });
+    await fetch('/api/wetkit/projects/' + pid + '/bom/generate',
+      { method: 'POST', headers: { 'x-tenant-id': tid, 'Authorization': 'Bearer ' + tok } });
+
+    document.getElementById('sketchStatus2').textContent =
+      '✓ ' + data.segments + ' segments created · redirecting to 3D viewer...';
+    setTimeout(() => {
+      closeSketch();
+      window.location.href = '/viewer.html';
+    }, 1500);
+  } catch(e) {
+    document.getElementById('sketchStatus2').textContent = 'Error: ' + e.message;
+  }
+}
+
+// Initial draw
+redraw();
+</script>

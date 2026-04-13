@@ -3,73 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WetKit OS — Pipe Viewer</title>
+  <title>dttradesman.ai — Pipe Viewer</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0f1a; color: #e2e8f0; font-family: monospace; overflow: hidden; }
+    body { background: #1a1f2e; color: #e2e8f0; font-family: monospace; overflow: hidden; }
     #canvas { display: block; width: 100vw; height: 100vh; }
-    #sidebar {
-      position: fixed; top: 0; right: 0; width: 300px; height: 100vh;
-      background: #111827; border-left: 1px solid #1f2937;
-      padding: 24px; overflow-y: auto; transform: translateX(100%);
-      transition: transform 0.2s; z-index: 10;
+
+    /* Top bar */
+    #topbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; background: linear-gradient(180deg, #1a1f2eee 0%, transparent 100%);
+      z-index: 10; pointer-events: none;
     }
-    #sidebar.open { transform: translateX(0); }
-    #sidebar h2 { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
-    .field { margin-bottom: 10px; }
-    .field label { font-size: 10px; color: #6b7280; display: block; }
-    .field span { font-size: 13px; color: #e2e8f0; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
-    #legend {
-      position: fixed; bottom: 24px; left: 24px;
-      background: #111827cc; border: 1px solid #1f2937;
-      border-radius: 8px; padding: 14px; z-index: 10;
+    #topbar-left h1 { font-size: 14px; color: #3b82f6; font-weight: 700; }
+    #topbar-left p  { font-size: 10px; color: #4b5563; }
+    #topbar-right { display: flex; gap: 8px; pointer-events: all; }
+    .top-btn {
+      padding: 6px 12px; font-size: 11px; font-family: monospace;
+      border-radius: 4px; cursor: pointer; border: 1px solid #1f2937;
+      background: #111827cc; color: #9ca3af; text-decoration: none;
     }
-    #legend h3 { font-size: 10px; color: #6b7280; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
-    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; }
-    #controls {
-      position: fixed; top: 24px; left: 24px;
-      background: #111827cc; border: 1px solid #1f2937;
-      border-radius: 8px; padding: 14px; z-index: 10; min-width: 180px;
+    .top-btn:hover { color: #e2e8f0; border-color: #374151; }
+
+    /* Systems panel */
+    #systems {
+      position: fixed; top: 60px; left: 16px;
+      background: #111827dd; border: 1px solid #1f2937;
+      border-radius: 10px; padding: 14px; z-index: 10; min-width: 180px;
+      backdrop-filter: blur(8px);
     }
-    #controls h1 { font-size: 13px; color: #3b82f6; margin-bottom: 2px; }
-    #controls p { font-size: 10px; color: #6b7280; margin-bottom: 10px; }
-    .toggle { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11px; cursor: pointer; }
-    #stats { font-size: 10px; color: #6b7280; margin-top: 10px; border-top: 1px solid #1f2937; padding-top: 8px; }
-    #close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #6b7280; cursor: pointer; font-size: 16px; }
-    #loading { position: fixed; inset: 0; background: #0a0f1a; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; z-index: 100; }
-    #loading p { font-size: 12px; color: #6b7280; }
-    .spin { width: 28px; height: 28px; border: 2px solid #1f2937; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    #systems h3 { font-size: 9px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+    .sys-item { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; cursor: pointer; }
+    .sys-item:hover { opacity: 0.8; }
+    .sys-pip { width: 28px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+    .sys-label { font-size: 11px; color: #d1d5db; }
+    .sys-count { font-size: 10px; color: #4b5563; margin-left: auto; }
+    #stats { font-size: 10px; color: #4b5563; margin-top: 10px; padding-top: 8px; border-top: 1px solid #1f2937; line-height: 1.6; }
+
+    /* Info panel */
+    #info {
+      position: fixed; top: 60px; right: 16px;
+      background: #111827dd; border: 1px solid #1f2937;
+      border-radius: 10px; padding: 14px; z-index: 10; width: 220px;
+      backdrop-filter: blur(8px); display: none;
+    }
+    #info.open { display: block; }
+    #info h3 { font-size: 9px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+    .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .info-row label { font-size: 10px; color: #6b7280; }
+    .info-row span  { font-size: 11px; color: #e2e8f0; font-weight: 600; }
+    .sys-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    #closeInfo { float: right; background: none; border: none; color: #4b5563; cursor: pointer; font-size: 14px; margin-top: -4px; }
+
+    /* Bottom hint */
+    #hint {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; color: #1f2937; white-space: nowrap;
+      background: #111827aa; padding: 4px 12px; border-radius: 12px;
+    }
+
+    /* Loading */
+    #loading {
+      position: fixed; inset: 0; background: #1a1f2e;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; z-index: 100;
+    }
+    .spin { width: 32px; height: 32px; border: 2px solid #1f2937; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #hint { position: fixed; bottom: 24px; right: 24px; font-size: 10px; color: #374151; }
-    .nav-back { position: fixed; top: 24px; right: 24px; background: #111827cc; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 12px; font-size: 11px; color: #9ca3af; text-decoration: none; z-index: 10; }
-    .nav-back:hover { color: #e2e8f0; }
+    #loading p { font-size: 12px; color: #4b5563; }
+    #loading h2 { font-size: 16px; color: #3b82f6; }
   </style>
 </head>
 <body>
-<div id="loading"><div class="spin"></div><p>Loading pipe segments...</p></div>
+
+<div id="loading">
+  <div class="spin"></div>
+  <h2>dttradesman.ai</h2>
+  <p>Loading pipe model...</p>
+</div>
+
 <canvas id="canvas"></canvas>
-<div id="controls">
-  <h1>WetKit OS</h1>
-  <p>Single line. Full spool. Pre-fab ready.</p>
-  <div id="toggles"></div>
+
+<div id="topbar">
+  <div id="topbar-left">
+    <h1>dttradesman.ai</h1>
+    <p id="modelLabel">Single line · Full spool · Pre-fab ready</p>
+  </div>
+  <div id="topbar-right">
+    <a href="/spools.html" class="top-btn">Spools</a>
+    <a href="/" class="top-btn">Dashboard</a>
+  </div>
+</div>
+
+<div id="systems">
+  <h3>Systems</h3>
+  <div id="sysItems"></div>
   <div id="stats"></div>
 </div>
-<div id="legend"><h3>Systems</h3><div id="legend-items"></div></div>
-<div id="sidebar">
-  <button id="close" onclick="closeSidebar()">x</button>
-  <h2>Pipe segment</h2>
-  <div id="info"></div>
+
+<div id="info">
+  <button id="closeInfo" onclick="document.getElementById('info').classList.remove('open')">×</button>
+  <h3>Pipe segment</h3>
+  <div id="infoContent"></div>
 </div>
-<a href="/" class="nav-back">Back to dashboard</a>
+
 <div id="hint">Drag to orbit · Scroll to zoom · Click pipe to inspect</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const PROJECT_ID= localStorage.getItem('wk_project')|| '11111111-1111-1111-1111-111111111111';
-const TENANT_ID = localStorage.getItem('wk_tenant') || '00000000-0000-0000-0000-000000000001';
-const TOKEN     = localStorage.getItem('wk_token')  || '';
+const PROJECT_ID = localStorage.getItem('wk_project') || '11111111-1111-1111-1111-111111111111';
+const TENANT_ID  = localStorage.getItem('wk_tenant')  || '00000000-0000-0000-0000-000000000001';
+const TOKEN      = localStorage.getItem('wk_token')   || '';
 
 if (!TOKEN) window.location.href = '/login.html';
 
@@ -80,29 +125,54 @@ const HEADERS = {
 };
 
 const SYSTEMS = {
-  CW:    { color: 0x2563EB, label: 'Cold water',       ind: 'o' },
-  HW:    { color: 0xDC2626, label: 'Hot water',        ind: 'e' },
-  HWR:   { color: 0xF97316, label: 'Hot water return', ind: 'o' },
-  FWS:   { color: 0xEF4444, label: 'Fire water',       ind: 't' },
-  SOIL:  { color: 0x44403c, label: 'Soil stack',       ind: 'v' },
-  WASTE: { color: 0x78716C, label: 'Waste',            ind: 'd' },
-  VENT:  { color: 0x0D9488, label: 'Vent',             ind: 't' },
-  SWD:   { color: 0x16A34A, label: 'Stormwater',       ind: 's' },
+  CW:    { color: 0x2979FF, label: 'Cold water',       hex: '#2979FF' },
+  HW:    { color: 0xF44336, label: 'Hot water',        hex: '#F44336' },
+  HWR:   { color: 0xFF6D00, label: 'Hot water return', hex: '#FF6D00' },
+  FWS:   { color: 0xFF1744, label: 'Fire water',       hex: '#FF1744' },
+  SOIL:  { color: 0x5D4037, label: 'Soil stack',       hex: '#5D4037' },
+  WASTE: { color: 0x757575, label: 'Waste',            hex: '#757575' },
+  VENT:  { color: 0x00BFA5, label: 'Vent',             hex: '#00BFA5' },
+  SWD:   { color: 0x00C853, label: 'Stormwater',       hex: '#00C853' },
 };
 
-const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
-renderer.setPixelRatio(devicePixelRatio);
+// Renderer
+const renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById('canvas'),
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(0x0a0f1a);
+renderer.setClearColor(0x1a1f2e);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1.0;
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 10, 500000);
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(1, 2, 1);
-scene.add(sun);
+const scene  = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x1a1f2e, 0.000015);
 
-let theta = 0.3, phi = 1.2, radius = 20000;
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 10, 1000000);
+
+// Lighting — 3 point setup
+const ambient = new THREE.AmbientLight(0xffffff, 2.5);
+scene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 3.0);
+keyLight.position.set(5000, 10000, 5000);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
+fillLight.position.set(-5000, 2000, -3000);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xffffff, 1.0);
+rimLight.position.set(0, -3000, 8000);
+scene.add(rimLight);
+
+// Camera orbit
+let theta = 0.785, phi = 0.9, radius = 20000;
 let target = new THREE.Vector3();
 let dragging = false, px = 0, py = 0;
 
@@ -120,70 +190,72 @@ cv.addEventListener('mousedown', e => { dragging = true; px = e.clientX; py = e.
 cv.addEventListener('mouseup', () => dragging = false);
 cv.addEventListener('mousemove', e => {
   if (!dragging) return;
-  theta -= (e.clientX - px) * 0.006;
-  phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi + (e.clientY - py) * 0.006));
+  theta -= (e.clientX - px) * 0.005;
+  phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi + (e.clientY - py) * 0.005));
   px = e.clientX; py = e.clientY;
   camPos();
 });
 cv.addEventListener('wheel', e => {
-  radius = Math.max(500, radius * (1 + e.deltaY * 0.001));
+  radius = Math.max(500, Math.min(200000, radius * (1 + e.deltaY * 0.001)));
   camPos();
-});
+}, { passive: true });
 
+// Touch
+let lastTouchX = 0, lastTouchY = 0;
+cv.addEventListener('touchstart', e => { lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY; });
+cv.addEventListener('touchmove', e => {
+  e.preventDefault();
+  theta -= (e.touches[0].clientX - lastTouchX) * 0.005;
+  phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi + (e.touches[0].clientY - lastTouchY) * 0.005));
+  lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+  camPos();
+}, { passive: false });
+
+// Raycaster
 const raycaster = new THREE.Raycaster();
 const clickables = [];
 cv.addEventListener('click', e => {
-  if (Math.abs(e.movementX) + Math.abs(e.movementY) > 3) return;
+  if (Math.abs(e.movementX) + Math.abs(e.movementY) > 5) return;
   const mouse = new THREE.Vector2(
-    (e.clientX / innerWidth) * 2 - 1,
-    -(e.clientY / innerHeight) * 2 + 1
+    (e.clientX/innerWidth)*2 - 1,
+    -(e.clientY/innerHeight)*2 + 1
   );
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObjects(clickables);
-  if (hits.length) showSidebar(hits[0].object.userData.seg);
+  if (hits.length) showInfo(hits[0].object.userData.seg);
 });
 
-function showSidebar(seg) {
-  const sys = SYSTEMS[seg.system_type] || {};
-  const hex = '#' + (sys.color || 0x888888).toString(16).padStart(6,'0');
-  document.getElementById('info').innerHTML =
-    '<div class="field"><label>System</label><span class="badge" style="background:' + hex + '33;color:' + hex + ';border:1px solid ' + hex + '55">' + seg.system_type + ' - ' + (sys.label||'') + '</span></div>' +
-    '<div class="field"><label>DN</label><span>' + (seg.diameter_mm ? seg.diameter_mm + ' mm' : '-') + '</span></div>' +
-    '<div class="field"><label>OD</label><span>' + (seg.od_mm ? seg.od_mm + ' mm' : '-') + '</span></div>' +
-    '<div class="field"><label>Length</label><span>' + (seg.length_mm ? Math.round(seg.length_mm) + ' mm' : '-') + '</span></div>' +
-    '<div class="field"><label>Floor</label><span>' + (seg.floor_level||'GF') + '</span></div>' +
-    '<div class="field"><label>Global ID</label><span style="font-size:10px;color:#9ca3af">' + seg.global_id + '</span></div>';
-  document.getElementById('sidebar').classList.add('open');
+function showInfo(seg) {
+  const sys = SYSTEMS[seg.system_type] || { hex: '#888', label: seg.system_type };
+  document.getElementById('infoContent').innerHTML =
+    '<div style="margin-bottom:10px">' +
+    '<span class="sys-tag" style="background:' + sys.hex + '22;color:' + sys.hex + ';border:1px solid ' + sys.hex + '44">' +
+    seg.system_type + ' — ' + sys.label + '</span></div>' +
+    '<div class="info-row"><label>DN</label><span>' + (seg.diameter_mm ? Math.round(seg.diameter_mm) + ' mm' : '—') + '</span></div>' +
+    '<div class="info-row"><label>OD</label><span>' + (seg.od_mm ? parseFloat(seg.od_mm).toFixed(1) + ' mm' : '—') + '</span></div>' +
+    '<div class="info-row"><label>Length</label><span>' + (seg.length_mm ? Math.round(seg.length_mm) + ' mm' : '—') + '</span></div>' +
+    '<div class="info-row"><label>Floor</label><span>' + (seg.floor_level || 'GF') + '</span></div>' +
+    '<div class="info-row"><label>Spool</label><span>' + (seg.spool_code || '—') + '</span></div>' +
+    '<div style="margin-top:8px;font-size:9px;color:#374151;word-break:break-all">' + seg.global_id + '</div>';
+  document.getElementById('info').classList.add('open');
 }
-function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
 
-const hidden = new Set();
-function buildUI(segments) {
-  const systems = [...new Set(segments.map(s => s.system_type))];
-  document.getElementById('toggles').innerHTML = systems.map(s => {
-    const cfg = SYSTEMS[s] || { color: 0x888888, label: s };
-    const hex = '#' + cfg.color.toString(16).padStart(6,'0');
-    return '<label class="toggle"><input type="checkbox" checked onchange="toggle(\'' + s + '\',this.checked)"><span style="color:' + hex + '">' + (cfg.label||s) + '</span></label>';
-  }).join('');
-  document.getElementById('legend-items').innerHTML = systems.map(s => {
-    const cfg = SYSTEMS[s] || { color: 0x888888, label: s, ind: 'o' };
-    const hex = '#' + cfg.color.toString(16).padStart(6,'0');
-    return '<div class="legend-item"><div class="dot" style="background:' + hex + '"></div><span>' + (cfg.label||s) + ' (' + s + ')</span></div>';
-  }).join('');
-  const counts = {};
-  segments.forEach(s => counts[s.system_type] = (counts[s.system_type]||0)+1);
-  document.getElementById('stats').innerHTML = segments.length + ' segments<br>' +
-    Object.entries(counts).map(([s,c]) => s + ': ' + c).join(' - ');
+// Grid floor
+function addGrid(size) {
+  const grid = new THREE.GridHelper(size, Math.floor(size/500), 0x0d1520, 0x0d1520);
+  grid.position.y = 0;
+  scene.add(grid);
 }
 
 const meshMap = {};
-function toggle(system, visible) {
-  Object.entries(meshMap).forEach(([id, mesh]) => {
-    if (mesh.userData.seg.system_type === system) mesh.visible = visible;
+function toggleSystem(sys, visible) {
+  Object.values(meshMap).forEach(m => {
+    if (m.userData.seg && m.userData.seg.system_type === sys) m.visible = visible;
   });
 }
 
 function buildScene(segments) {
+  // Compute centroid
   let sumX = 0, sumY = 0, sumZ = 0;
   segments.forEach(s => {
     sumX += (parseFloat(s.start_x) + parseFloat(s.end_x)) / 2;
@@ -191,44 +263,134 @@ function buildScene(segments) {
     sumZ += (parseFloat(s.start_z) + parseFloat(s.end_z)) / 2;
   });
   const cx = sumX/segments.length, cy = sumY/segments.length, cz = sumZ/segments.length;
+
   let maxDist = 0;
   segments.forEach(s => {
-    const d = Math.sqrt(Math.pow(parseFloat(s.start_x)-cx,2)+Math.pow(parseFloat(s.start_y)-cy,2));
+    const d = Math.sqrt(Math.pow((parseFloat(s.start_x)+parseFloat(s.end_x))/2 - cx, 2) +
+                        Math.pow((parseFloat(s.start_z)+parseFloat(s.end_z))/2 - cz, 2));
     if (d > maxDist) maxDist = d;
   });
-  radius = Math.max(maxDist * 2.5, 5000);
-  target.set(0, 0, 0);
+  radius = Math.max(maxDist * 3, 8000);
+
+  addGrid(Math.max(maxDist * 4, 20000));
+
+  // Point tracker for junctions
+  const ptCount = {};
+  const SNAP = 30;
+  function ptKey(x,y,z) { return Math.round(x/SNAP)+','+Math.round(y/SNAP)+','+Math.round(z/SNAP); }
 
   segments.forEach(seg => {
-    const cfg = SYSTEMS[seg.system_type] || { color: 0x888888 };
-    const sx = parseFloat(seg.start_x)-cx, sy = parseFloat(seg.start_z)-cz, sz = -(parseFloat(seg.start_y)-cy);
-    const ex = parseFloat(seg.end_x)-cx,   ey = parseFloat(seg.end_z)-cz,   ez = -(parseFloat(seg.end_y)-cy);
+    const cfg = SYSTEMS[seg.system_type] || { color: 0x888888, hex: '#888888' };
+    const sx = parseFloat(seg.start_x)-cx;
+    const sy = parseFloat(seg.start_z)-cz;
+    const sz = -(parseFloat(seg.start_y)-cy);
+    const ex = parseFloat(seg.end_x)-cx;
+    const ey = parseFloat(seg.end_z)-cz;
+    const ez = -(parseFloat(seg.end_y)-cy);
+
     const start = new THREE.Vector3(sx, sy, sz);
     const end   = new THREE.Vector3(ex, ey, ez);
-    const path  = new THREE.LineCurve3(start, end);
-    const r     = seg.od_mm ? parseFloat(seg.od_mm)/2 : 25;
-    const geo   = new THREE.TubeGeometry(path, 1, r, 8, false);
-    const mat   = new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.5, metalness: 0.2 });
-    const mesh  = new THREE.Mesh(geo, mat);
-    mesh.userData.seg = seg;
+    const len   = start.distanceTo(end);
+    if (len < 1) return;
+
+    // Pipe radius — realistic but visible
+    const dn = parseFloat(seg.diameter_mm) || 20;
+    const od = parseFloat(seg.od_mm) || (dn * 1.3);
+    const r  = Math.max(od * 4, 60);
+
+    // Pipe material — metallic
+    const mat = new THREE.MeshStandardMaterial({
+      color: cfg.color,
+      roughness: 0.25,
+      metalness: 0.7,
+      envMapIntensity: 0.5, emissive: cfg.color, emissiveIntensity: 0.3,
+    });
+
+    // Pipe tube
+    const path = new THREE.LineCurve3(start, end);
+    const geo  = new THREE.TubeGeometry(path, 2, r, 20, false);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.userData.seg = { ...seg, spool_code: seg.spool_code };
     scene.add(mesh);
     clickables.push(mesh);
     meshMap[seg.global_id] = mesh;
+
+    // End cap spheres
+    [start, end].forEach(pt => {
+      const k = ptKey(pt.x, pt.y, pt.z);
+      ptCount[k] = (ptCount[k] || { pt, count: 0, color: cfg.color });
+      ptCount[k].count++;
+    });
   });
+
+  // Junction spheres
+  Object.values(ptCount).forEach(({ pt, count, color }) => {
+    const dn = 20, od = 26.9;
+    const r  = Math.max(od * 4, 60) * (count >= 3 ? 1.4 : 1.1);
+    const geo = new THREE.SphereGeometry(r, 16, 16);
+    const mat = new THREE.MeshStandardMaterial({
+      color, roughness: 0.2, metalness: 0.8
+    });
+    const sphere = new THREE.Mesh(geo, mat);
+    sphere.position.copy(pt);
+    sphere.castShadow = true;
+    scene.add(sphere);
+  });
+
+  // Build system legend
+  const counts = {};
+  segments.forEach(s => counts[s.system_type] = (counts[s.system_type]||0)+1);
+  const sysDiv = document.getElementById('sysItems');
+  sysDiv.innerHTML = Object.entries(counts).map(([sys, cnt]) => {
+    const cfg = SYSTEMS[sys] || { hex: '#888', label: sys };
+    return '<div class="sys-item" onclick="toggleSystem(\'' + sys + '\', this)" data-sys="' + sys + '" data-vis="1">' +
+      '<div class="sys-pip" style="background:' + cfg.hex + ';box-shadow:0 0 6px ' + cfg.hex + '88"></div>' +
+      '<span class="sys-label">' + cfg.label + '</span>' +
+      '<span class="sys-count">' + cnt + '</span>' +
+      '</div>';
+  }).join('');
+
+  document.getElementById('stats').innerHTML =
+    segments.length + ' segments<br>' +
+    Object.keys(counts).length + ' systems<br>' +
+    (segments[0] ? (Math.round(segments.reduce((s,r) => s+parseFloat(r.length_mm||0),0)/1000)) + 'm total' : '');
+
+  document.getElementById('modelLabel').textContent =
+    segments.length + ' segments · ' + Object.keys(counts).join(' · ');
+
+  target.set(0, 0, 0);
   camPos();
   document.getElementById('loading').style.display = 'none';
 }
 
+// Toggle system visibility
+window.toggleSystem = function(sys, el) {
+  if (typeof el === 'object' && el.dataset) {
+    const vis = el.dataset.vis === '1';
+    el.dataset.vis = vis ? '0' : '1';
+    el.style.opacity = vis ? '0.35' : '1';
+    Object.values(meshMap).forEach(m => {
+      if (m.userData.seg && m.userData.seg.system_type === sys) m.visible = !vis;
+    });
+  }
+};
+
+// Fetch and render
 fetch('/api/wetkit/projects/' + PROJECT_ID + '/segments', { headers: HEADERS })
   .then(r => r.json())
   .then(data => {
-    buildUI(data.segments);
+    if (!data.segments || !data.segments.length) {
+      document.getElementById('loading').innerHTML = '<p style="color:#4b5563">No segments found. Upload an IFC file first.</p><br><a href="/" style="color:#3b82f6;font-size:12px">← Back to dashboard</a>';
+      return;
+    }
     buildScene(data.segments);
   })
   .catch(err => {
     document.getElementById('loading').innerHTML = '<p style="color:#ef4444">Error: ' + err.message + '</p>';
   });
 
+// Animate
 (function animate() {
   requestAnimationFrame(animate);
   renderer.render(scene, camera);
