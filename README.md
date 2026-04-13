@@ -1,4 +1,4 @@
-# WetKit OS
+# dttradesman.ai
 
 Production plumbing DFMA platform. Live at **https://dttradesman.ai**
 
